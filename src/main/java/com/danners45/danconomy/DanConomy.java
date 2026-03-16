@@ -3,16 +3,16 @@ package com.danners45.danconomy;
 // Minecraft Imports
 import com.mojang.logging.LogUtils;
 import org.slf4j.Logger;
-import java.util.UUID;
 // Neo Imports
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.neoforge.common.NeoForge;
 // Inhouse Imports
 import com.danners45.danconomy.currency.CurrencyBootstrap;
 import com.danners45.danconomy.currency.CurrencyRegistry;
-import com.danners45.danconomy.account.Account;
-import com.danners45.danconomy.account.AccountManager;
+import com.danners45.danconomy.account.AccountEvents;
+
 
 @Mod(DanConomy.MODID)
 public class DanConomy {
@@ -26,12 +26,7 @@ public class DanConomy {
 
         LOGGER.info("Loaded {} Currencies.", CurrencyRegistry.getAll().size());
 
-        UUID testId = UUID.randomUUID();
-        Account testAccount = AccountManager.getOrCreateAccount(testId);
+        NeoForge.EVENT_BUS.register(AccountEvents.class);
 
-        testAccount.setAlias("TestPlayer");
-        testAccount.deposit("dollar", 500);
-
-        LOGGER.info("Test account '{}' balance: {}", testAccount.getAlias(), testAccount.getBalance("dollar"));
     }
 }
