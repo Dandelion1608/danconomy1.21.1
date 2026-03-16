@@ -1,0 +1,13 @@
+{
+  "itemGroup.danconomy": "Example Mod Tab",
+  "block.danconomy.example_block": "Example Block",
+  "item.danconomy.example_item": "Example Item",
+
+  "danconomy.configuration.title": "DanConomy Configs",
+  "danconomy.configuration.section.danconomy.common.toml": "DanConomy Configs",
+  "danconomy.configuration.section.danconomy.common.toml.title": "DanConomy Configs",
+  "danconomy.configuration.items": "Item List",
+  "danconomy.configuration.logDirtBlock": "Log Dirt Block",
+  "danconomy.configuration.magicNumberIntroduction": "Magic Number Text",
+  "danconomy.configuration.magicNumber": "Magic Number"
+}
