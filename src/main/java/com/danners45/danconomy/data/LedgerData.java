@@ -2,6 +2,7 @@
 package com.danners45.danconomy.data;
 
 import com.danners45.danconomy.account.Account;
+import com.danners45.danconomy.currency.CurrencyRegistry;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
@@ -89,7 +90,20 @@ public class LedgerData extends SavedData {
             throw new IllegalArgumentException("Player id cannot be null.");
         }
 
-        Account account = accounts.computeIfAbsent(playerId, id -> new Account());
+        Account account = accounts.computeIfAbsent(playerId, id -> {
+            Account newAccount = new Account();
+
+            String defaultCurrencyId = CurrencyRegistry.getDefaultCurrencyId();
+            long startingBalance = CurrencyRegistry.getStartingBalance();
+
+            if (defaultCurrencyId != null
+                    && !defaultCurrencyId.isBlank()
+                    && startingBalance > 0) {
+                newAccount.setBalance(defaultCurrencyId, startingBalance);
+            }
+
+            return newAccount;
+        });
         setDirty();
         return account;
     }

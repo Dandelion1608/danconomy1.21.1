@@ -1,13 +1,42 @@
 package com.danners45.danconomy.permission;
 
+import com.danners45.danconomy.DanConomy;
+import net.minecraft.network.chat.Component;
+import net.neoforged.neoforge.server.permission.nodes.PermissionNode;
+import net.neoforged.neoforge.server.permission.nodes.PermissionTypes;
+
 public final class PermissionNodes {
 
-    public static final String BALANCE = "danconomy.command.balance";
-    public static final String PAY = "danconomy.command.pay";
-    public static final String ADMIN_SET = "danconomy.admin.set";
-    public static final String ADMIN_GIVE = "danconomy.admin.give";
-    public static final String ADMIN_TAKE = "danconomy.admin.take";
+    public static final PermissionNode<Boolean> BALANCE =
+            boolNode("command.balance", true);
+
+    public static final PermissionNode<Boolean> BALTOP =
+            boolNode("command.baltop", true);
+
+    public static final PermissionNode<Boolean> PAY =
+            boolNode("command.pay", true);
+
+    public static final PermissionNode<Boolean> ADMIN_SET =
+            boolNode("admin.set", true);
+
+    public static final PermissionNode<Boolean> ADMIN_GIVE =
+            boolNode("admin.give", true);
+
+    public static final PermissionNode<Boolean> ADMIN_TAKE =
+            boolNode("admin.take", true);
 
     private PermissionNodes() {
+    }
+
+    private static PermissionNode<Boolean> boolNode(String nodeName, boolean defaultValue) {
+        return new PermissionNode<>(
+                DanConomy.MODID,
+                nodeName,
+                PermissionTypes.BOOLEAN,
+                (player, playerUUID, contexts) -> defaultValue
+        ).setInformation(
+                Component.literal(nodeName),
+                Component.literal("DanConomy permission node: " + DanConomy.MODID + "." + nodeName)
+        );
     }
 }

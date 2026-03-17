@@ -139,6 +139,10 @@ dependencies {
     // For more info:
     // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
     // http://www.gradle.org/docs/current/userguide/dependency_management.html
+
+    jarJar(implementation("com.moandjiezana.toml:toml4j:0.7.2"))
+
+    additionalRuntimeClasspath "com.moandjiezana.toml:toml4j:0.7.2"
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.
