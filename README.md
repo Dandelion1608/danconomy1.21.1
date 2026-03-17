@@ -1,23 +1,27 @@
+# DanConomy
 
-Installation information
-=======
+A lightweight multi-currency economy mod featuring basic commands and an optional pixelmon compatibility layer while supporting Permissions handlers or OP based environments
 
-This template repository can be directly cloned to get you started with a new
-mod. Simply create a new repository cloned from this one, by following the
-instructions provided by [GitHub](https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-repository-from-a-template).
+## Available Commands
+### Playerfacing commands:
+* /Pay
+* /Bal
+* /Baltop
+### Admin Commands
+* /givebalance
+* /takebalance
+* /setbalance
 
-Once you have your clone, simply open the repository in the IDE of your choice. The usual recommendation for an IDE is either IntelliJ IDEA or Eclipse.
+## Admin Accessible NBT Storage
+all account data is held in a ledger located in the world folder for your save: /<world>/data/economy_ledger.dat
 
-If at any point you are missing libraries in your IDE, or you've run into problems you can
-run `gradlew --refresh-dependencies` to refresh the local cache. `gradlew clean` to reset everything 
-{this does not affect your code} and then start the process again.
+## Optional Pixelmon Integration
+Runs With or Without Pixelmon - running with pixelmon will integrate the Pokedollars internal cash system with the virtual /bal system as the default currency - without pixelmon this mod will pull the default from the config file with space to run asmany additional currencies in tandem as you may need
 
-Mapping Names:
-============
-By default, the MDK is configured to use the official mapping names from Mojang for methods and fields 
-in the Minecraft codebase. These names are covered by a specific license. All modders should be aware of this
-license. For the latest license text, refer to the mapping file itself, or the reference copy here:
-https://github.com/NeoForged/NeoForm/blob/main/Mojang.md
+Configurable starting balance, Currency Name, Symbol and Singular/Plural references as well as text format for command output results (IE: Alex paid you $100.50 Dollars or You paid Steve 100 Dollars 50 with alternative solutions available
+
+## Planned Features:
+* Chest/Sign Shops
 
 Additional Resources: 
 ==========
