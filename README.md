@@ -3,14 +3,14 @@
 A lightweight multi-currency economy mod featuring basic commands and an optional pixelmon compatibility layer while supporting Permissions handlers or OP based environments
 
 ## Available Commands
-### Playerfacing commands:
-* /Pay
-* /Bal
-* /Baltop
-### Admin Commands
-* /givebalance
-* /takebalance
-* /setbalance
+### Playerfacing commands(permissions enabled by default):
+* /Pay danconomy.command.pay
+* /Bal danconomy.command.bal
+* /Baltop danconomy.command.baltop
+### Admin Commands (permissions false by default):
+* /givebalance danconomy.admin.give
+* /takebalance danconomy.admin.take
+* /setbalance danconomy.admin.set
 
 ## Admin Accessible NBT Storage
 all account data is held in a ledger located in the world folder for your save: /<world>/data/economy_ledger.dat
