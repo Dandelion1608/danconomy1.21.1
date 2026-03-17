@@ -2,6 +2,11 @@ package com.danners45.danconomy.currency;
 
 public class Currency {
 
+    public enum BackingType {
+        LEDGER,
+        PIXELMON_MIRRORED
+    }
+
     private final String id;
     private final String displayNameSingular;
     private final String displayNamePlural;
@@ -9,6 +14,7 @@ public class Currency {
     private final int decimalPlaces;
     private final String formatStyle;
     private final boolean payable;
+    private final BackingType backingType;
 
     public Currency(
             String id,
@@ -19,6 +25,28 @@ public class Currency {
             String formatStyle,
             boolean payable
     ) {
+        this(
+                id,
+                displayNameSingular,
+                displayNamePlural,
+                symbol,
+                decimalPlaces,
+                formatStyle,
+                payable,
+                BackingType.LEDGER
+        );
+    }
+
+    public Currency(
+            String id,
+            String displayNameSingular,
+            String displayNamePlural,
+            String symbol,
+            int decimalPlaces,
+            String formatStyle,
+            boolean payable,
+            BackingType backingType
+    ) {
         this.id = normalizeId(id);
         this.displayNameSingular = displayNameSingular;
         this.displayNamePlural = displayNamePlural;
@@ -26,6 +54,7 @@ public class Currency {
         this.decimalPlaces = decimalPlaces;
         this.formatStyle = formatStyle;
         this.payable = payable;
+        this.backingType = backingType == null ? BackingType.LEDGER : backingType;
     }
 
     public String getId() {
@@ -54,6 +83,18 @@ public class Currency {
 
     public boolean isPayable() {
         return payable;
+    }
+
+    public BackingType getBackingType() {
+        return backingType;
+    }
+
+    public boolean isLedgerBacked() {
+        return backingType == BackingType.LEDGER;
+    }
+
+    public boolean isPixelmonMirrored() {
+        return backingType == BackingType.PIXELMON_MIRRORED;
     }
 
     private String normalizeId(String id) {

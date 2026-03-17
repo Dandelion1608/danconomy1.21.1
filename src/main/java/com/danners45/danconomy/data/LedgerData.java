@@ -93,17 +93,20 @@ public class LedgerData extends SavedData {
         Account account = accounts.computeIfAbsent(playerId, id -> {
             Account newAccount = new Account();
 
-            String defaultCurrencyId = CurrencyRegistry.getDefaultCurrencyId();
+            String currencyId = CurrencyRegistry.getDefaultCurrencyId();
             long startingBalance = CurrencyRegistry.getStartingBalance();
 
-            if (defaultCurrencyId != null
-                    && !defaultCurrencyId.isBlank()
-                    && startingBalance > 0) {
-                newAccount.setBalance(defaultCurrencyId, startingBalance);
+            if ((currencyId == null || currencyId.isBlank()) && CurrencyRegistry.getAll().size() == 1) {
+                currencyId = CurrencyRegistry.getAll().keySet().iterator().next();
+            }
+
+            if (currencyId != null && !currencyId.isBlank() && startingBalance > 0) {
+                newAccount.setBalance(currencyId, startingBalance);
             }
 
             return newAccount;
         });
+
         setDirty();
         return account;
     }

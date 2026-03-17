@@ -1,8 +1,8 @@
 package com.danners45.danconomy.command;
 
-import com.danners45.danconomy.data.LedgerData;
-import com.danners45.danconomy.permission.PermissionNodes;
 import com.danners45.danconomy.currency.Currency;
+import com.danners45.danconomy.economy.EconomyAccess;
+import com.danners45.danconomy.permission.PermissionNodes;
 import com.danners45.danconomy.permission.PermissionService;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -22,16 +22,20 @@ public class SetBalanceCommand {
                                 Commands.argument("player", EntityArgument.player())
                                         .then(
                                                 Commands.argument("amount", StringArgumentType.word())
-                                                        .executes(ctx -> execute(ctx.getSource(),
+                                                        .executes(ctx -> execute(
+                                                                ctx.getSource(),
                                                                 EntityArgument.getPlayer(ctx, "player"),
                                                                 StringArgumentType.getString(ctx, "amount"),
-                                                                null))
+                                                                null
+                                                        ))
                                                         .then(
                                                                 Commands.argument("currency", StringArgumentType.word())
-                                                                        .executes(ctx -> execute(ctx.getSource(),
+                                                                        .executes(ctx -> execute(
+                                                                                ctx.getSource(),
                                                                                 EntityArgument.getPlayer(ctx, "player"),
                                                                                 StringArgumentType.getString(ctx, "amount"),
-                                                                                StringArgumentType.getString(ctx, "currency")))
+                                                                                StringArgumentType.getString(ctx, "currency")
+                                                                        ))
                                                         )
                                         )
                         )
@@ -43,13 +47,18 @@ public class SetBalanceCommand {
             Currency currency = CommandUtils.resolveCurrency(currencyId);
             long amount = CommandUtils.parseAmountToMinorUnits(amountInput, currency);
 
-            LedgerData ledger = LedgerData.get(target.serverLevel());
-            ledger.getOrCreateAccount(target.getUUID()).setBalance(currency.getId(), amount);
-            ledger.markDirty();
+            if (amount < 0) {
+                source.sendFailure(Component.literal("Amount cannot be negative."));
+                return 0;
+            }
+
+            EconomyAccess.setBalance(target, currency, amount);
+
+            String formattedAmount = CommandUtils.formatAmount(amount, currency);
 
             source.sendSuccess(
                     () -> Component.literal(
-                            "Set " + target.getName().getString() + "'s balance to " + CommandUtils.formatAmount(amount, currency)
+                            "Set " + target.getName().getString() + "'s balance to " + formattedAmount + "."
                     ),
                     true
             );
@@ -60,5 +69,4 @@ public class SetBalanceCommand {
             return 0;
         }
     }
-
 }

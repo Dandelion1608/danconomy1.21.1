@@ -1,9 +1,10 @@
 package com.danners45.danconomy.command;
 
 import com.danners45.danconomy.account.Account;
-import com.danners45.danconomy.data.LedgerData;
-import com.danners45.danconomy.permission.PermissionNodes;
 import com.danners45.danconomy.currency.Currency;
+import com.danners45.danconomy.data.LedgerData;
+import com.danners45.danconomy.economy.EconomyAccess;
+import com.danners45.danconomy.permission.PermissionNodes;
 import com.danners45.danconomy.permission.PermissionService;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -15,6 +16,7 @@ import net.minecraft.server.level.ServerPlayer;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class BalTopCommand {
 
@@ -25,7 +27,10 @@ public class BalTopCommand {
                         .executes(ctx -> execute(ctx.getSource(), null))
                         .then(
                                 Commands.argument("currency", StringArgumentType.word())
-                                        .executes(ctx -> execute(ctx.getSource(), StringArgumentType.getString(ctx, "currency")))
+                                        .executes(ctx -> execute(
+                                                ctx.getSource(),
+                                                StringArgumentType.getString(ctx, "currency")
+                                        ))
                         )
         );
     }
@@ -40,7 +45,17 @@ public class BalTopCommand {
             Currency currency = CommandUtils.resolveCurrency(currencyId);
             LedgerData ledger = LedgerData.get(player.serverLevel());
 
-            player.sendSystemMessage(Component.literal("=== Balance Top (" + currency.getId() + ") ==="));
+            if (currency.isPixelmonMirrored()) {
+                for (ServerPlayer onlinePlayer : player.server.getPlayerList().getPlayers()) {
+                    EconomyAccess.getBalance(onlinePlayer, currency);
+                }
+            }
+
+            player.sendSystemMessage(
+                    Component.literal("Top Balances (" + currency.getDisplayNamePlural() + "):")
+            );
+
+            AtomicInteger position = new AtomicInteger(1);
 
             ledger.getAllAccounts().entrySet().stream()
                     .sorted(
@@ -50,11 +65,18 @@ public class BalTopCommand {
                     )
                     .limit(10)
                     .forEach(entry -> {
-                        String alias = entry.getValue().getAlias();
-                        long balance = entry.getValue().getBalance(currency.getId());
+                        Account account = entry.getValue();
+                        String alias = account.getAlias();
+                        long balance = account.getBalance(currency.getId());
+
+                        if (alias == null || alias.isBlank()) {
+                            alias = entry.getKey().toString();
+                        }
+
+                        int rank = position.getAndIncrement();
 
                         player.sendSystemMessage(
-                                Component.literal(alias + ": " + CommandUtils.formatAmount(balance, currency))
+                                Component.literal(rank + ". " + alias + " - " + CommandUtils.formatAmount(balance, currency))
                         );
                     });
 
@@ -63,9 +85,5 @@ public class BalTopCommand {
             source.sendFailure(Component.literal(e.getMessage()));
             return 0;
         }
-    }
-
-    private static boolean hasPermission(CommandSourceStack source, String node) {
-        return source.hasPermission(0);
     }
 }

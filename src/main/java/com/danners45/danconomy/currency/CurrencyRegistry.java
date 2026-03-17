@@ -10,6 +10,9 @@ public class CurrencyRegistry {
     private static long startingBalance = 0;
     private static boolean requireExplicitCurrencyIfAmbiguous = true;
 
+    private CurrencyRegistry() {
+    }
+
     public static void register(Currency currency) {
         if (currency == null) {
             throw new IllegalArgumentException("Cannot register null currency.");
@@ -23,6 +26,20 @@ public class CurrencyRegistry {
 
         if (currencies.containsKey(id)) {
             throw new IllegalArgumentException("Currency already registered: " + id);
+        }
+
+        currencies.put(id, currency);
+    }
+
+    public static void registerOrReplace(Currency currency) {
+        if (currency == null) {
+            throw new IllegalArgumentException("Cannot register null currency.");
+        }
+
+        String id = normalizeId(currency.getId());
+
+        if (id.isBlank()) {
+            throw new IllegalArgumentException("Currency id cannot be blank.");
         }
 
         currencies.put(id, currency);
@@ -46,6 +63,10 @@ public class CurrencyRegistry {
 
     public static Map<String, Currency> getAll() {
         return Map.copyOf(currencies);
+    }
+
+    public static int size() {
+        return currencies.size();
     }
 
     public static void clear() {
@@ -85,6 +106,10 @@ public class CurrencyRegistry {
     }
 
     private static String normalizeId(String id) {
+        if (id == null) {
+            throw new IllegalArgumentException("Currency id cannot be null.");
+        }
+
         return id.trim().toLowerCase();
     }
 }

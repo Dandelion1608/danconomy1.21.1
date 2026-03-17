@@ -1,9 +1,8 @@
 package com.danners45.danconomy.command;
 
-import com.danners45.danconomy.account.Account;
-import com.danners45.danconomy.data.LedgerData;
-import com.danners45.danconomy.permission.PermissionNodes;
 import com.danners45.danconomy.currency.Currency;
+import com.danners45.danconomy.economy.EconomyAccess;
+import com.danners45.danconomy.permission.PermissionNodes;
 import com.danners45.danconomy.permission.PermissionService;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -23,16 +22,20 @@ public class TakeBalanceCommand {
                                 Commands.argument("player", EntityArgument.player())
                                         .then(
                                                 Commands.argument("amount", StringArgumentType.word())
-                                                        .executes(ctx -> execute(ctx.getSource(),
+                                                        .executes(ctx -> execute(
+                                                                ctx.getSource(),
                                                                 EntityArgument.getPlayer(ctx, "player"),
                                                                 StringArgumentType.getString(ctx, "amount"),
-                                                                null))
+                                                                null
+                                                        ))
                                                         .then(
                                                                 Commands.argument("currency", StringArgumentType.word())
-                                                                        .executes(ctx -> execute(ctx.getSource(),
+                                                                        .executes(ctx -> execute(
+                                                                                ctx.getSource(),
                                                                                 EntityArgument.getPlayer(ctx, "player"),
                                                                                 StringArgumentType.getString(ctx, "amount"),
-                                                                                StringArgumentType.getString(ctx, "currency")))
+                                                                                StringArgumentType.getString(ctx, "currency")
+                                                                        ))
                                                         )
                                         )
                         )
@@ -44,19 +47,25 @@ public class TakeBalanceCommand {
             Currency currency = CommandUtils.resolveCurrency(currencyId);
             long amount = CommandUtils.parseAmountToMinorUnits(amountInput, currency);
 
-            LedgerData ledger = LedgerData.get(target.serverLevel());
-            Account account = ledger.getOrCreateAccount(target.getUUID());
-
-            if (!account.withdraw(currency.getId(), amount)) {
-                source.sendFailure(Component.literal(target.getName().getString() + " does not have enough balance."));
+            if (amount <= 0) {
+                source.sendFailure(Component.literal("Amount must be greater than 0."));
                 return 0;
             }
 
-            ledger.markDirty();
+            if (!EconomyAccess.withdraw(target, currency, amount)) {
+                source.sendFailure(Component.literal(
+                        target.getName().getString() + " does not have enough " + currency.getDisplayNamePlural() + "."
+                ));
+                return 0;
+            }
+
+            long newBalance = EconomyAccess.getBalance(target, currency);
+            String formattedAmount = CommandUtils.formatAmount(amount, currency);
+            String formattedNewBalance = CommandUtils.formatAmount(newBalance, currency);
 
             source.sendSuccess(
                     () -> Component.literal(
-                            "Took " + CommandUtils.formatAmount(amount, currency) + " from " + target.getName().getString()
+                            "Took " + formattedAmount + " from " + target.getName().getString() + ". New balance: " + formattedNewBalance
                     ),
                     true
             );
@@ -66,9 +75,5 @@ public class TakeBalanceCommand {
             source.sendFailure(Component.literal(e.getMessage()));
             return 0;
         }
-    }
-
-    private static boolean hasPermission(CommandSourceStack source, String node) {
-        return source.hasPermission(2);
     }
 }

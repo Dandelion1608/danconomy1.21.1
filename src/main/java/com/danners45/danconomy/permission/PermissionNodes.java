@@ -17,13 +17,13 @@ public final class PermissionNodes {
             boolNode("command.pay", true);
 
     public static final PermissionNode<Boolean> ADMIN_SET =
-            boolNode("admin.set", true);
+            boolNode("admin.set", false);
 
     public static final PermissionNode<Boolean> ADMIN_GIVE =
-            boolNode("admin.give", true);
+            boolNode("admin.give", false);
 
     public static final PermissionNode<Boolean> ADMIN_TAKE =
-            boolNode("admin.take", true);
+            boolNode("admin.take", false);
 
     private PermissionNodes() {
     }

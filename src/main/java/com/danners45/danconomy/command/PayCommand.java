@@ -1,9 +1,8 @@
 package com.danners45.danconomy.command;
 
-import com.danners45.danconomy.account.Account;
-import com.danners45.danconomy.data.LedgerData;
-import com.danners45.danconomy.permission.PermissionNodes;
 import com.danners45.danconomy.currency.Currency;
+import com.danners45.danconomy.economy.EconomyAccess;
+import com.danners45.danconomy.permission.PermissionNodes;
 import com.danners45.danconomy.permission.PermissionService;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -23,16 +22,20 @@ public class PayCommand {
                                 Commands.argument("player", EntityArgument.player())
                                         .then(
                                                 Commands.argument("amount", StringArgumentType.word())
-                                                        .executes(ctx -> execute(ctx.getSource(),
+                                                        .executes(ctx -> execute(
+                                                                ctx.getSource(),
                                                                 EntityArgument.getPlayer(ctx, "player"),
                                                                 StringArgumentType.getString(ctx, "amount"),
-                                                                null))
+                                                                null
+                                                        ))
                                                         .then(
                                                                 Commands.argument("currency", StringArgumentType.word())
-                                                                        .executes(ctx -> execute(ctx.getSource(),
+                                                                        .executes(ctx -> execute(
+                                                                                ctx.getSource(),
                                                                                 EntityArgument.getPlayer(ctx, "player"),
                                                                                 StringArgumentType.getString(ctx, "amount"),
-                                                                                StringArgumentType.getString(ctx, "currency")))
+                                                                                StringArgumentType.getString(ctx, "currency")
+                                                                        ))
                                                         )
                                         )
                         )
@@ -65,28 +68,23 @@ public class PayCommand {
                 return 0;
             }
 
-            LedgerData ledger = LedgerData.get(sender.serverLevel());
-            Account senderAccount = ledger.getOrCreateAccount(sender.getUUID());
-            Account targetAccount = ledger.getOrCreateAccount(target.getUUID());
-
-            if (!senderAccount.withdraw(currency.getId(), amount)) {
-                source.sendFailure(Component.literal("You do not have enough balance."));
+            if (!EconomyAccess.withdraw(sender, currency, amount)) {
+                source.sendFailure(Component.literal(
+                        "You do not have enough " + currency.getDisplayNamePlural() + "."
+                ));
                 return 0;
             }
 
-            targetAccount.deposit(currency.getId(), amount);
-            ledger.markDirty();
+            EconomyAccess.deposit(target, currency, amount);
+
+            String formattedAmount = CommandUtils.formatAmount(amount, currency);
 
             sender.sendSystemMessage(
-                    Component.literal(
-                            "You paid " + target.getName().getString() + " " + CommandUtils.formatAmount(amount, currency) + "."
-                    )
+                    Component.literal("You paid " + target.getName().getString() + " " + formattedAmount + ".")
             );
 
             target.sendSystemMessage(
-                    Component.literal(
-                            sender.getName().getString() + " has paid you " + CommandUtils.formatAmount(amount, currency) + "."
-                    )
+                    Component.literal(sender.getName().getString() + " paid you " + formattedAmount + ".")
             );
 
             return 1;
@@ -94,9 +92,5 @@ public class PayCommand {
             source.sendFailure(Component.literal(e.getMessage()));
             return 0;
         }
-    }
-
-    private static boolean hasPermission(CommandSourceStack source, String node) {
-        return source.hasPermission(0);
     }
 }

@@ -1,8 +1,8 @@
 package com.danners45.danconomy.command;
 
-import com.danners45.danconomy.data.LedgerData;
-import com.danners45.danconomy.permission.PermissionNodes;
 import com.danners45.danconomy.currency.Currency;
+import com.danners45.danconomy.economy.EconomyAccess;
+import com.danners45.danconomy.permission.PermissionNodes;
 import com.danners45.danconomy.permission.PermissionService;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -22,16 +22,20 @@ public class GiveBalanceCommand {
                                 Commands.argument("player", EntityArgument.player())
                                         .then(
                                                 Commands.argument("amount", StringArgumentType.word())
-                                                        .executes(ctx -> execute(ctx.getSource(),
+                                                        .executes(ctx -> execute(
+                                                                ctx.getSource(),
                                                                 EntityArgument.getPlayer(ctx, "player"),
                                                                 StringArgumentType.getString(ctx, "amount"),
-                                                                null))
+                                                                null
+                                                        ))
                                                         .then(
                                                                 Commands.argument("currency", StringArgumentType.word())
-                                                                        .executes(ctx -> execute(ctx.getSource(),
+                                                                        .executes(ctx -> execute(
+                                                                                ctx.getSource(),
                                                                                 EntityArgument.getPlayer(ctx, "player"),
                                                                                 StringArgumentType.getString(ctx, "amount"),
-                                                                                StringArgumentType.getString(ctx, "currency")))
+                                                                                StringArgumentType.getString(ctx, "currency")
+                                                                        ))
                                                         )
                                         )
                         )
@@ -43,13 +47,20 @@ public class GiveBalanceCommand {
             Currency currency = CommandUtils.resolveCurrency(currencyId);
             long amount = CommandUtils.parseAmountToMinorUnits(amountInput, currency);
 
-            LedgerData ledger = LedgerData.get(target.serverLevel());
-            ledger.getOrCreateAccount(target.getUUID()).deposit(currency.getId(), amount);
-            ledger.markDirty();
+            if (amount <= 0) {
+                source.sendFailure(Component.literal("Amount must be greater than 0."));
+                return 0;
+            }
+
+            EconomyAccess.deposit(target, currency, amount);
+
+            long newBalance = EconomyAccess.getBalance(target, currency);
+            String formattedAmount = CommandUtils.formatAmount(amount, currency);
+            String formattedNewBalance = CommandUtils.formatAmount(newBalance, currency);
 
             source.sendSuccess(
                     () -> Component.literal(
-                            "Gave " + CommandUtils.formatAmount(amount, currency) + " to " + target.getName().getString()
+                            "Gave " + target.getName().getString() + " " + formattedAmount + ". New balance: " + formattedNewBalance
                     ),
                     true
             );
@@ -59,9 +70,5 @@ public class GiveBalanceCommand {
             source.sendFailure(Component.literal(e.getMessage()));
             return 0;
         }
-    }
-
-    private static boolean hasPermission(CommandSourceStack source, String node) {
-        return source.hasPermission(2);
     }
 }

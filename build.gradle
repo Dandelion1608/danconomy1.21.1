@@ -28,6 +28,7 @@ sourceSets.main.resources {
 
 repositories {
     // Add here additional repositories if required by some of the dependencies below.
+    mavenCentral()
 }
 
 base {
@@ -140,9 +141,15 @@ dependencies {
     // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
     // http://www.gradle.org/docs/current/userguide/dependency_management.html
 
-    jarJar(implementation("com.moandjiezana.toml:toml4j:0.7.2"))
+    jarJar(implementation("com.moandjiezana.toml:toml4j:0.7.2")) {
+        version {
+            strictly "[0.7.2]"
+            prefer "0.7.2"
+        }
+    }
 
     additionalRuntimeClasspath "com.moandjiezana.toml:toml4j:0.7.2"
+
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.

@@ -88,10 +88,12 @@ public final class CommandUtils {
         int decimalPlaces = currency.getDecimalPlaces();
         long divisor = (long) Math.pow(10, decimalPlaces);
 
-        long whole = divisor == 0 ? minorUnits : minorUnits / divisor;
-        long fractional = divisor == 0 ? 0 : minorUnits % divisor;
+        long whole = decimalPlaces <= 0 ? minorUnits : minorUnits / divisor;
+        long fractional = decimalPlaces <= 0 ? 0 : Math.abs(minorUnits % divisor);
 
-        String unitName = (whole == 1)
+        boolean hasFractional = decimalPlaces > 0 && fractional != 0;
+
+        String unitName = (!hasFractional && whole == 1)
                 ? currency.getDisplayNameSingular()
                 : currency.getDisplayNamePlural();
 
@@ -99,7 +101,7 @@ public final class CommandUtils {
             case "WORD" ->
                     (decimalPlaces == 0 || fractional == 0)
                             ? whole + " " + unitName
-                            : whole + " " + unitName + " " + fractional;
+                            : whole + " " + unitName + " " + String.format("%0" + decimalPlaces + "d", fractional);
 
             case "SYMBOL_PREFIX" ->
                     currency.getSymbol() + formatDecimalString(whole, fractional, decimalPlaces);

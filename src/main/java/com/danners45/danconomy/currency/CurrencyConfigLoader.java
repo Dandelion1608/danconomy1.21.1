@@ -16,6 +16,7 @@ public class CurrencyConfigLoader {
     private static final Path CONFIG_PATH = Paths.get("config", "danconomy.toml");
 
     public static void load() {
+        DanConomy.LOGGER.info("=== CONFIG LOADER STARTED ===");
         try {
             if (!Files.exists(CONFIG_PATH)) {
                 LOGGER.warn("DanConomy config not found. Creating default danconomy.toml");
@@ -113,7 +114,7 @@ public class CurrencyConfigLoader {
 
 defaultCurrency = ""
 requireExplicitCurrencyIfAmbiguous = true
-startingBalance = 0
+startingBalance = 10000
 
 [[currencies]]
 id = "dollar"
