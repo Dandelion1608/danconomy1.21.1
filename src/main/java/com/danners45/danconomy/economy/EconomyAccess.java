@@ -4,6 +4,7 @@ import com.danners45.danconomy.DanConomy;
 import com.danners45.danconomy.account.Account;
 import com.danners45.danconomy.currency.Currency;
 import com.danners45.danconomy.data.LedgerData;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.fml.ModList;
 
@@ -93,15 +94,104 @@ public final class EconomyAccess {
         }
     }
 
+    public static boolean hasFunds(ServerLevel level, UUID playerId, Currency currency, long amount) {
+        if (level == null) {
+            throw new IllegalArgumentException("Level cannot be null.");
+        }
+
+        if (playerId == null) {
+            throw new IllegalArgumentException("Player ID cannot be null.");
+        }
+
+        if (currency == null) {
+            throw new IllegalArgumentException("Currency cannot be null.");
+        }
+
+        if (amount < 0) {
+            throw new IllegalArgumentException("Amount cannot be negative.");
+        }
+
+        long balance = switch (currency.getBackingType()) {
+            case LEDGER -> getLedgerBalance(level, playerId, currency);
+            case PIXELMON_MIRRORED -> getMirroredLedgerBalance(level, playerId, currency);
+        };
+
+        return balance >= amount;
+    }
+
+    public static boolean withdraw(ServerLevel level, UUID playerId, Currency currency, long amount) {
+        if (level == null) {
+            throw new IllegalArgumentException("Level cannot be null.");
+        }
+
+        if (playerId == null) {
+            throw new IllegalArgumentException("Player ID cannot be null.");
+        }
+
+        if (currency == null) {
+            throw new IllegalArgumentException("Currency cannot be null.");
+        }
+
+        if (amount < 0) {
+            throw new IllegalArgumentException("Amount cannot be negative.");
+        }
+
+        return switch (currency.getBackingType()) {
+            case LEDGER -> withdrawLedger(level, playerId, currency, amount);
+            case PIXELMON_MIRRORED -> withdrawMirroredLedger(level, playerId, currency, amount);
+        };
+    }
+
+    public static void deposit(ServerLevel level, UUID playerId, Currency currency, long amount) {
+        if (level == null) {
+            throw new IllegalArgumentException("Level cannot be null.");
+        }
+
+        if (playerId == null) {
+            throw new IllegalArgumentException("Player ID cannot be null.");
+        }
+
+        if (currency == null) {
+            throw new IllegalArgumentException("Currency cannot be null.");
+        }
+
+        if (amount < 0) {
+            throw new IllegalArgumentException("Amount cannot be negative.");
+        }
+
+        switch (currency.getBackingType()) {
+            case LEDGER -> depositLedger(level, playerId, currency, amount);
+            case PIXELMON_MIRRORED -> depositMirroredLedger(level, playerId, currency, amount);
+        }
+    }
+
     private static long getLedgerBalance(ServerPlayer player, Currency currency) {
         LedgerData ledger = LedgerData.get(player.serverLevel());
         Account account = ledger.getOrCreateAccount(player.getUUID());
         return account.getBalance(currency.getId());
     }
 
+    private static long getLedgerBalance(ServerLevel level, UUID playerId, Currency currency) {
+        LedgerData ledger = LedgerData.get(level);
+        Account account = ledger.getOrCreateAccount(playerId);
+        return account.getBalance(currency.getId());
+    }
+
     private static boolean withdrawLedger(ServerPlayer player, Currency currency, long amount) {
         LedgerData ledger = LedgerData.get(player.serverLevel());
         Account account = ledger.getOrCreateAccount(player.getUUID());
+
+        boolean success = account.withdraw(currency.getId(), amount);
+        if (success) {
+            ledger.markDirty();
+        }
+
+        return success;
+    }
+
+    private static boolean withdrawLedger(ServerLevel level, UUID playerId, Currency currency, long amount) {
+        LedgerData ledger = LedgerData.get(level);
+        Account account = ledger.getOrCreateAccount(playerId);
 
         boolean success = account.withdraw(currency.getId(), amount);
         if (success) {
@@ -118,11 +208,40 @@ public final class EconomyAccess {
         ledger.markDirty();
     }
 
+    private static void depositLedger(ServerLevel level, UUID playerId, Currency currency, long amount) {
+        LedgerData ledger = LedgerData.get(level);
+        Account account = ledger.getOrCreateAccount(playerId);
+        account.deposit(currency.getId(), amount);
+        ledger.markDirty();
+    }
+
     private static void setLedgerBalance(ServerPlayer player, Currency currency, long amount) {
         LedgerData ledger = LedgerData.get(player.serverLevel());
         Account account = ledger.getOrCreateAccount(player.getUUID());
         account.setBalance(currency.getId(), amount);
         ledger.markDirty();
+    }
+
+    private static long getMirroredLedgerBalance(ServerLevel level, UUID playerId, Currency currency) {
+        return getLedgerBalance(level, playerId, currency);
+    }
+
+    private static boolean withdrawMirroredLedger(ServerLevel level, UUID playerId, Currency currency, long amount) {
+        DanConomy.LOGGER.warn(
+                "Offline withdraw for mirrored currency '{}' is using the ledger mirror for player {}.",
+                currency.getId(),
+                playerId
+        );
+        return withdrawLedger(level, playerId, currency, amount);
+    }
+
+    private static void depositMirroredLedger(ServerLevel level, UUID playerId, Currency currency, long amount) {
+        DanConomy.LOGGER.warn(
+                "Offline deposit for mirrored currency '{}' is using the ledger mirror for player {}.",
+                currency.getId(),
+                playerId
+        );
+        depositLedger(level, playerId, currency, amount);
     }
 
     private static long getPixelmonMirroredBalance(ServerPlayer player, Currency currency) {

@@ -1,4 +1,3 @@
-//Saves economy NBT to /world/data/economy_ledger.dat
 package com.danners45.danconomy.data;
 
 import com.danners45.danconomy.account.Account;
@@ -15,7 +14,7 @@ import java.util.UUID;
 
 public class LedgerData extends SavedData {
 
-    private static final String DATA_NAME = "economy_ledger";
+    private static final String DATA_NAME = "danconomy_ledger";
 
     private final Map<UUID, Account> accounts = new HashMap<>();
 
@@ -39,10 +38,25 @@ public class LedgerData extends SavedData {
             account.setAlias(accountTag.getString("alias"));
 
             CompoundTag balancesTag = accountTag.getCompound("balances");
-
             for (String currencyId : balancesTag.getAllKeys()) {
                 long amount = balancesTag.getLong(currencyId);
                 account.setBalance(currencyId, amount);
+            }
+
+            CompoundTag earningsTag = accountTag.getCompound("offlineShopEarnings");
+            for (String currencyId : earningsTag.getAllKeys()) {
+                long amount = earningsTag.getLong(currencyId);
+                if (amount > 0L) {
+                    account.addOfflineShopEarnings(currencyId, amount);
+                }
+            }
+
+            CompoundTag spendingTag = accountTag.getCompound("offlineShopSpending");
+            for (String currencyId : spendingTag.getAllKeys()) {
+                long amount = spendingTag.getLong(currencyId);
+                if (amount > 0L) {
+                    account.addOfflineShopSpending(currencyId, amount);
+                }
             }
 
             data.accounts.put(uuid, account);
@@ -63,12 +77,23 @@ public class LedgerData extends SavedData {
             accountTag.putString("alias", account.getAlias());
 
             CompoundTag balancesTag = new CompoundTag();
-
             for (Map.Entry<String, Long> balanceEntry : account.getAllBalances().entrySet()) {
                 balancesTag.putLong(balanceEntry.getKey(), balanceEntry.getValue());
             }
-
             accountTag.put("balances", balancesTag);
+
+            CompoundTag earningsTag = new CompoundTag();
+            for (Map.Entry<String, Long> earningsEntry : account.getOfflineShopEarnings().entrySet()) {
+                earningsTag.putLong(earningsEntry.getKey(), earningsEntry.getValue());
+            }
+            accountTag.put("offlineShopEarnings", earningsTag);
+
+            CompoundTag spendingTag = new CompoundTag();
+            for (Map.Entry<String, Long> spendingEntry : account.getOfflineShopSpending().entrySet()) {
+                spendingTag.putLong(spendingEntry.getKey(), spendingEntry.getValue());
+            }
+            accountTag.put("offlineShopSpending", spendingTag);
+
             accountsTag.put(uuid.toString(), accountTag);
         }
 

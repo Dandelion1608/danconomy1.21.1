@@ -11,9 +11,11 @@ public class PermissionEvents {
                 PermissionNodes.BALANCE,
                 PermissionNodes.BALTOP,
                 PermissionNodes.PAY,
+                PermissionNodes.SHOP,
                 PermissionNodes.ADMIN_SET,
                 PermissionNodes.ADMIN_GIVE,
-                PermissionNodes.ADMIN_TAKE
+                PermissionNodes.ADMIN_TAKE,
+                PermissionNodes.ADMIN_SHOP
         );
     }
 }

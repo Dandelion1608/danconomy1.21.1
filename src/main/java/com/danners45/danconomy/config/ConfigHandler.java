@@ -1,22 +1,31 @@
-package com.danners45.danconomy.currency;
+package com.danners45.danconomy.config;
 
 import com.danners45.danconomy.DanConomy;
+import com.danners45.danconomy.currency.Currency;
+import com.danners45.danconomy.currency.CurrencyRegistry;
+import com.danners45.danconomy.shop.ShopStorageValidator;
+import com.moandjiezana.toml.Toml;
 import org.slf4j.Logger;
 
 import java.io.IOException;
 import java.nio.file.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import com.moandjiezana.toml.Toml;
+import java.util.List;
 
-public class CurrencyConfigLoader {
-
+public final class ConfigHandler {
     private static final Logger LOGGER = DanConomy.LOGGER;
-
     private static final Path CONFIG_PATH = Paths.get("config", "danconomy.toml");
 
+    private static boolean showShopDebugDetails = false;
+    private static List<String> allowedShopStorage = List.of("minecraft:barrel");
+
+    private ConfigHandler() {
+    }
+
     public static void load() {
-        DanConomy.LOGGER.info("=== CONFIG LOADER STARTED ===");
+        LOGGER.info("=== CONFIG LOADER STARTED ===");
+
         try {
             if (!Files.exists(CONFIG_PATH)) {
                 LOGGER.warn("DanConomy config not found. Creating default danconomy.toml");
@@ -24,11 +33,11 @@ public class CurrencyConfigLoader {
             }
 
             Toml toml = new Toml().read(CONFIG_PATH.toFile());
-
             validateAndRegister(toml);
 
-            LOGGER.info("DanConomy config loaded successfully.");
+            ShopStorageValidator.rebuildAllowedBlockCache();
 
+            LOGGER.info("DanConomy config loaded successfully.");
         } catch (Exception e) {
             LOGGER.error("DanConomy config is invalid. Backing up and recreating...", e);
 
@@ -38,6 +47,10 @@ public class CurrencyConfigLoader {
                 createDefaultConfig();
                 Toml toml = new Toml().read(CONFIG_PATH.toFile());
                 validateAndRegister(toml);
+
+                ShopStorageValidator.rebuildAllowedBlockCache();
+
+                LOGGER.info("DanConomy config recovered successfully.");
             } catch (Exception ex) {
                 LOGGER.error("Failed to recover config. Mod may not function correctly.", ex);
             }
@@ -45,10 +58,8 @@ public class CurrencyConfigLoader {
     }
 
     private static void validateAndRegister(Toml toml) {
-
         CurrencyRegistry.clear();
 
-        // ✅ Load global settings
         Long startingBalance = toml.getLong("startingBalance", 0L);
         CurrencyRegistry.setStartingBalance(startingBalance);
 
@@ -58,15 +69,29 @@ public class CurrencyConfigLoader {
         String defaultCurrency = toml.getString("defaultCurrency", "");
         CurrencyRegistry.setDefaultCurrencyId(defaultCurrency);
 
-        // ✅ Load currencies
-        var currencies = toml.getTables("currencies");
+        Boolean debugDetails = toml.getBoolean("shop.showDebugDetails", false);
+        showShopDebugDetails = debugDetails != null && debugDetails;
 
+        List<Object> allowedBlocksRaw = toml.getList("shop.allowedShopStorage");
+        if (allowedBlocksRaw == null || allowedBlocksRaw.isEmpty()) {
+            allowedShopStorage = List.of("minecraft:barrel");
+        } else {
+            allowedShopStorage = allowedBlocksRaw.stream()
+                    .filter(String.class::isInstance)
+                    .map(String.class::cast)
+                    .toList();
+
+            if (allowedShopStorage.isEmpty()) {
+                allowedShopStorage = List.of("minecraft:barrel");
+            }
+        }
+
+        List<Toml> currencies = toml.getTables("currencies");
         if (currencies == null || currencies.isEmpty()) {
             throw new IllegalStateException("No currencies defined in config.");
         }
 
-        for (var currencyTable : currencies) {
-
+        for (Toml currencyTable : currencies) {
             String id = currencyTable.getString("id");
             String singular = currencyTable.getString("displayNameSingular");
             String plural = currencyTable.getString("displayNamePlural");
@@ -97,43 +122,105 @@ public class CurrencyConfigLoader {
             CurrencyRegistry.register(currency);
         }
 
-        // ✅ Validate default currency exists
         if (!defaultCurrency.isEmpty() && !CurrencyRegistry.exists(defaultCurrency)) {
             throw new IllegalStateException("Default currency does not exist: " + defaultCurrency);
         }
 
         LOGGER.info("Loaded {} currencies.", CurrencyRegistry.getAll().size());
+        LOGGER.info("Loaded {} allowed shop storage entries.", allowedShopStorage.size());
+    }
+
+    public static boolean showShopDebugDetails() {
+        return showShopDebugDetails;
+    }
+
+    public static List<String> allowedShopStorage() {
+        return allowedShopStorage;
     }
 
     private static void createDefaultConfig() throws IOException {
-
         Files.createDirectories(CONFIG_PATH.getParent());
 
         String defaultConfig = """
 # DanConomy Configuration
+#
+# defaultCurrency:
+#   The currency id used when no specific currency is provided and a default is needed.
+#   Leave blank to avoid forcing a default.
+#
+# requireExplicitCurrencyIfAmbiguous:
+#   If true, commands must specify a currency when multiple valid currencies could apply.
+#
+# startingBalance:
+#   The amount new accounts start with, in minor units.
+#   Example: with decimalPlaces = 2, 10000 = 100.00
 
 defaultCurrency = ""
 requireExplicitCurrencyIfAmbiguous = true
 startingBalance = 10000
 
+[shop]
+# showDebugDetails:
+#   If true, extra technical detail is shown in shop validation logs.
+showDebugDetails = false
+
+# allowedShopStorage:
+#   List of block ids that are allowed to be used as shop storage.
+#   These still must qualify as valid item storage in-world.
+#   Examples:
+#   - "minecraft:barrel"
+#   - "minecraft:chest"
+#   - "ironchest:copper_chest"
+allowedShopStorage = ["minecraft:barrel"]
+
 [[currencies]]
+# id:
+#   Internal currency id used in commands and references.
 id = "dollar"
+
+# displayNameSingular:
+#   Name shown when the amount is singular.
 displayNameSingular = "dollar"
+
+# displayNamePlural:
+#   Name shown when the amount is plural.
 displayNamePlural = "dollars"
+
+# symbol:
+#   Symbol used for symbol-based display styles.
 symbol = "$"
+
+# decimalPlaces:
+#   Number of decimal places used by this currency.
+#   Example: 2 means 100 = 1.00
 decimalPlaces = 2
-formatStyle = "WORD"
+
+# formatStyle:
+#   Controls how the currency is displayed.
+#   Supported examples:
+#   - "WORD"
+#   - "SYMBOL_PREFIX"
+#   - "SYMBOL_SUFFIX"
+formatStyle = "SYMBOL_PREFIX"
+
+# payable:
+#   If true, players can transfer this currency with pay/shop-style flows.
 payable = true
 """;
 
-        Files.writeString(CONFIG_PATH, defaultConfig,
+        Files.writeString(
+                CONFIG_PATH,
+                defaultConfig,
                 StandardOpenOption.CREATE,
-                StandardOpenOption.TRUNCATE_EXISTING);
+                StandardOpenOption.TRUNCATE_EXISTING
+        );
     }
 
     private static void backupBrokenConfig() {
         try {
-            if (!Files.exists(CONFIG_PATH)) return;
+            if (!Files.exists(CONFIG_PATH)) {
+                return;
+            }
 
             String timestamp = LocalDateTime.now()
                     .format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
@@ -143,7 +230,6 @@ payable = true
             Files.move(CONFIG_PATH, backupPath, StandardCopyOption.REPLACE_EXISTING);
 
             LOGGER.warn("Backed up invalid config to: {}", backupPath);
-
         } catch (IOException e) {
             LOGGER.error("Failed to backup broken config.", e);
         }

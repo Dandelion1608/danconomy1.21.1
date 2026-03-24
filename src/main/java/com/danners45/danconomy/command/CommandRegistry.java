@@ -13,5 +13,6 @@ public class CommandRegistry {
         TakeBalanceCommand.register(event.getDispatcher());
         PayCommand.register(event.getDispatcher());
         BalTopCommand.register(event.getDispatcher());
+        ShopCommand.register(event.getDispatcher());
     }
 }

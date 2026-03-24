@@ -16,6 +16,9 @@ public final class PermissionNodes {
     public static final PermissionNode<Boolean> PAY =
             boolNode("command.pay", true);
 
+    public static final PermissionNode<Boolean> SHOP =
+            boolNode("command.shop", true);
+
     public static final PermissionNode<Boolean> ADMIN_SET =
             boolNode("admin.set", false);
 
@@ -24,6 +27,9 @@ public final class PermissionNodes {
 
     public static final PermissionNode<Boolean> ADMIN_TAKE =
             boolNode("admin.take", false);
+
+    public static final PermissionNode<Boolean> ADMIN_SHOP =
+            boolNode("admin.shop", false);
 
     private PermissionNodes() {
     }
