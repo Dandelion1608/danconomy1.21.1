@@ -24,8 +24,6 @@ public class DanConomy {
     private static final String PIXELMON_CURRENCY_ID = "pokedollar";
 
     public DanConomy(IEventBus modEventBus, ModContainer modContainer) {
-        LOGGER.info("=====Danconomy Initialised, Beginning Banking Sequence=====");
-
         ConfigHandler.load();
         registerOptionalPixelmonCurrency();
 
