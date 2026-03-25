@@ -20,8 +20,27 @@ Runs With or Without Pixelmon - running with pixelmon will integrate the Pokedol
 
 Configurable starting balance, Currency Name, Symbol and Singular/Plural references as well as text format for command output results (IE: Alex paid you $100.50 Dollars or You paid Steve 100 Dollars 50 with alternative solutions available
 
+##Now with Barrel/sign Shops
+
+Create a Sign Shop by first placing a Storage container (barrel currently only vanilla barrels are supported) and a sign near by - Please Note: 1 sign, 1 Action (Buy/Sell) - Multiple Signs to a storage are possible
+
+Use the command /Shop create buy <Quantity> <Price> <Currency> to start the process of creating a Sale Sign, Right click the Barrel, and with the item you want to sell in hand, Right Click the sign - the sign will then populate with the details:
+
+[Buy From]
+<playername>
+<quantity>x <item>
+<Currencysymbol><Price>
+To create a Purchasing sign, do the same again but with the command /shop create sell <Quantity> <Price> <Currency> once complete this will populate the sign with the details:
+
+[Sell To]
+<playername>
+<quantity>x <item>
+<Currencysymbol><Price>
+To buy or sell goods through these signs, simply right click,
+
+Beware of setting the "Sell To" Price Higher than your "Buy From" Price, thats how you lose money
+
 ## Planned Features:
-* Chest/Sign Shops
 
 Additional Resources: 
 ==========
