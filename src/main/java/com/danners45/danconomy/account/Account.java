@@ -30,37 +30,20 @@ public class Account {
     }
 
     public void setBalance(String currencyId, long amount) {
-        if (currencyId == null) {
-            throw new IllegalArgumentException("Currency ID cannot be null.");
-        }
-        if (amount < 0) {
-            throw new IllegalArgumentException("Balance cannot be negative.");
-        }
-        balances.put(normalizeCurrencyId(currencyId), amount);
+        String normalizedId = requireCurrencyId(currencyId);
+        requireNonNegative(amount, "Balance cannot be negative.");
+
+        balances.put(normalizedId, amount);
     }
 
     public void deposit(String currencyId, long amount) {
-        if (currencyId == null) {
-            throw new IllegalArgumentException("Currency ID cannot be null.");
-        }
-        if (amount < 0) {
-            throw new IllegalArgumentException("Deposit amount cannot be negative.");
-        }
-
-        String normalizedId = normalizeCurrencyId(currencyId);
-        long currentBalance = getBalance(normalizedId);
-        balances.put(normalizedId, currentBalance + amount);
+        addToBasket(balances, currencyId, amount, "Deposit amount cannot be negative.");
     }
 
     public boolean withdraw(String currencyId, long amount) {
-        if (currencyId == null) {
-            throw new IllegalArgumentException("Currency ID cannot be null.");
-        }
-        if (amount < 0) {
-            throw new IllegalArgumentException("Withdraw amount cannot be negative.");
-        }
+        String normalizedId = requireCurrencyId(currencyId);
+        requireNonNegative(amount, "Withdraw amount cannot be negative.");
 
-        String normalizedId = normalizeCurrencyId(currencyId);
         long currentBalance = getBalance(normalizedId);
 
         if (currentBalance < amount) {
@@ -72,71 +55,19 @@ public class Account {
     }
 
     public void addOfflineShopEarnings(String currencyId, long amount) {
-        if (currencyId == null) {
-            throw new IllegalArgumentException("Currency ID cannot be null.");
-        }
-        if (amount < 0) {
-            throw new IllegalArgumentException("Offline earnings amount cannot be negative.");
-        }
-
-        String normalizedId = normalizeCurrencyId(currencyId);
-        offlineShopEarnings.put(
-                normalizedId,
-                offlineShopEarnings.getOrDefault(normalizedId, 0L) + amount
-        );
+        addToBasket(offlineShopEarnings, currencyId, amount, "Offline earnings amount cannot be negative.");
     }
 
     public void removeOfflineShopEarnings(String currencyId, long amount) {
-        if (currencyId == null) {
-            throw new IllegalArgumentException("Currency ID cannot be null.");
-        }
-        if (amount < 0) {
-            throw new IllegalArgumentException("Offline earnings removal amount cannot be negative.");
-        }
-
-        String normalizedId = normalizeCurrencyId(currencyId);
-        long current = offlineShopEarnings.getOrDefault(normalizedId, 0L);
-        long updated = current - amount;
-
-        if (updated > 0L) {
-            offlineShopEarnings.put(normalizedId, updated);
-        } else {
-            offlineShopEarnings.remove(normalizedId);
-        }
+        takeFromBasket(offlineShopEarnings, currencyId, amount, "Offline earnings removal amount cannot be negative.");
     }
 
     public void addOfflineShopSpending(String currencyId, long amount) {
-        if (currencyId == null) {
-            throw new IllegalArgumentException("Currency ID cannot be null.");
-        }
-        if (amount < 0) {
-            throw new IllegalArgumentException("Offline spending amount cannot be negative.");
-        }
-
-        String normalizedId = normalizeCurrencyId(currencyId);
-        offlineShopSpending.put(
-                normalizedId,
-                offlineShopSpending.getOrDefault(normalizedId, 0L) + amount
-        );
+        addToBasket(offlineShopSpending, currencyId, amount, "Offline spending amount cannot be negative.");
     }
 
     public void removeOfflineShopSpending(String currencyId, long amount) {
-        if (currencyId == null) {
-            throw new IllegalArgumentException("Currency ID cannot be null.");
-        }
-        if (amount < 0) {
-            throw new IllegalArgumentException("Offline spending removal amount cannot be negative.");
-        }
-
-        String normalizedId = normalizeCurrencyId(currencyId);
-        long current = offlineShopSpending.getOrDefault(normalizedId, 0L);
-        long updated = current - amount;
-
-        if (updated > 0L) {
-            offlineShopSpending.put(normalizedId, updated);
-        } else {
-            offlineShopSpending.remove(normalizedId);
-        }
+        takeFromBasket(offlineShopSpending, currencyId, amount, "Offline spending removal amount cannot be negative.");
     }
 
     public Map<String, Long> consumeOfflineShopEarnings() {
@@ -166,4 +97,36 @@ public class Account {
     private String normalizeCurrencyId(String currencyId) {
         return currencyId.trim().toLowerCase();
     }
+
+    // helper methods
+    private String requireCurrencyId(String currencyId) {
+        if (currencyId == null) {
+            throw new IllegalArgumentException("Currency ID cannot be null.");
+        }
+        return normalizeCurrencyId(currencyId);
+    }
+    private static void requireNonNegative(long amount, String message) {
+        if (amount < 0) {
+            throw new IllegalArgumentException(message);
+        }
+    }
+    private void addToBasket(Map<String, Long> basket, String currencyId, long amount, String message) {
+        String normalizedId = requireCurrencyId(currencyId);
+        requireNonNegative(amount, message);
+        basket.put(normalizedId, basket.getOrDefault(normalizedId, 0L) + amount);
+    }
+    private void takeFromBasket(Map<String, Long> basket, String currencyId, long amount, String message) {
+        String normalizedId = requireCurrencyId(currencyId);
+        requireNonNegative(amount, message);
+
+        long current = basket.getOrDefault(normalizedId, 0L);
+        long updated = current - amount;
+
+        if (updated > 0L) {
+            basket.put(normalizedId, updated);
+        } else {
+            basket.remove(normalizedId);
+        }
+    }
+
 }
