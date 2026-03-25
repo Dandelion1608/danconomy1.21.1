@@ -1,16 +1,21 @@
 package com.danners45.danconomy.command;
 
 import com.danners45.danconomy.currency.Currency;
+import com.danners45.danconomy.currency.CurrencyRegistry;
 import com.danners45.danconomy.economy.EconomyAccess;
 import com.danners45.danconomy.permission.PermissionNodes;
 import com.danners45.danconomy.permission.PermissionService;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.suggestion.Suggestions;
+import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+
+import java.util.concurrent.CompletableFuture;
 
 public class PayCommand {
 
@@ -30,6 +35,7 @@ public class PayCommand {
                                                         ))
                                                         .then(
                                                                 Commands.argument("currency", StringArgumentType.word())
+                                                                        .suggests((ctx, builder) -> suggestCurrencies(ctx.getSource(), builder))
                                                                         .executes(ctx -> execute(
                                                                                 ctx.getSource(),
                                                                                 EntityArgument.getPlayer(ctx, "player"),
@@ -73,11 +79,12 @@ public class PayCommand {
             String formattedAmount = CommandUtils.formatAmount(amount, currency);
             notifyPayment(sender, target, formattedAmount);
 
-				return 1;
+            return 1;
         } catch (IllegalArgumentException | IllegalStateException e) {
             return CommandFeedback.fail(source, e.getMessage());
         }
     }
+
     private static void notifyPayment(ServerPlayer sender, ServerPlayer target, String formattedAmount) {
         sender.sendSystemMessage(
                 Component.literal("You paid " + target.getName().getString() + " " + formattedAmount + ".")
@@ -86,5 +93,16 @@ public class PayCommand {
         target.sendSystemMessage(
                 Component.literal(sender.getName().getString() + " paid you " + formattedAmount + ".")
         );
+    }
+
+    private static CompletableFuture<Suggestions> suggestCurrencies(
+            CommandSourceStack source,
+            SuggestionsBuilder builder
+    ) {
+        for (Currency currency : CurrencyRegistry.getAll().values()) {
+            builder.suggest(currency.getId());
+        }
+
+        return builder.buildFuture();
     }
 }
