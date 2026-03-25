@@ -164,34 +164,29 @@ public final class ShopCommand {
             boolean adminShop
     ) {
         if (!(source.getEntity() instanceof ServerPlayer player)) {
-            source.sendFailure(Component.literal("Only players can create shops."));
-            return 0;
+            return CommandFeedback.fail(source, "Only players can create shops.");
         }
 
         final Currency currency;
         try {
             currency = CommandUtils.resolveCurrency(currencyText);
         } catch (IllegalArgumentException | IllegalStateException e) {
-            source.sendFailure(Component.literal("Unknown currency: " + currencyText));
-            return 0;
+            return CommandFeedback.fail(source, "Unknown currency: " + currencyText);
         }
 
         final long priceMinor;
         try {
             priceMinor = CommandUtils.parseAmountToMinorUnits(priceText, currency);
         } catch (IllegalArgumentException e) {
-            source.sendFailure(Component.literal("Invalid price: " + priceText));
-            return 0;
+            return CommandFeedback.fail(source, "Invalid price: " + priceText);
         }
 
         if (priceMinor < 0) {
-            source.sendFailure(Component.literal("Price cannot be negative."));
-            return 0;
+            return CommandFeedback.fail(source, "Price cannot be negative.");
         }
 
         if (player.getMainHandItem().isEmpty()) {
-            source.sendFailure(Component.literal("Hold the item you want this shop to trade."));
-            return 0;
+            return CommandFeedback.fail(source, "Hold the item you want this shop to trade.");
         }
 
         ShopCreationManager.startCreation(
@@ -219,40 +214,24 @@ public final class ShopCommand {
 
     private static int remove(CommandSourceStack source) {
         if (!(source.getEntity() instanceof ServerPlayer player)) {
-            source.sendFailure(Component.literal("Only players can remove shops."));
-            return 0;
+            return CommandFeedback.fail(source, "Only players can remove shops.");
         }
 
-        BlockPos signPos = getLookedAtSign(player);
-        if (signPos == null) {
-            source.sendFailure(Component.literal("Look at a shop sign first."));
-            return 0;
-        }
-
-        ShopEntry entry = ShopService.getShop(player.serverLevel(), signPos);
+        ShopEntry entry = getLookedAtShopOrFail(source, player);
         if (entry == null) {
-            source.sendFailure(Component.literal("That sign is not a shop."));
             return 0;
         }
 
-        return ShopService.tryRemoveShop(player, signPos) ? 1 : 0;
+        return ShopService.tryRemoveShop(player, entry.signPos()) ? 1 : 0;
     }
 
     private static int info(CommandSourceStack source) {
         if (!(source.getEntity() instanceof ServerPlayer player)) {
-            source.sendFailure(Component.literal("Only players can inspect shops."));
-            return 0;
+            return CommandFeedback.fail(source, "Only players can inspect shops.");
         }
 
-        BlockPos signPos = getLookedAtSign(player);
-        if (signPos == null) {
-            source.sendFailure(Component.literal("Look at a shop sign first."));
-            return 0;
-        }
-
-        ShopEntry entry = ShopService.getShop(player.serverLevel(), signPos);
+        ShopEntry entry = getLookedAtShopOrFail(source, player);
         if (entry == null) {
-            source.sendFailure(Component.literal("That sign is not a shop."));
             return 0;
         }
 
@@ -287,28 +266,19 @@ public final class ShopCommand {
 
     private static int update(CommandSourceStack source) {
         if (!(source.getEntity() instanceof ServerPlayer player)) {
-            source.sendFailure(Component.literal("Only players can update shops."));
-            return 0;
+            return CommandFeedback.fail(source, "Only players can update shops.");
         }
 
-        BlockPos signPos = getLookedAtSign(player);
-        if (signPos == null) {
-            source.sendFailure(Component.literal("Look at a shop sign first."));
-            return 0;
-        }
-
-        ShopEntry entry = ShopService.getShop(player.serverLevel(), signPos);
+        ShopEntry entry = getLookedAtShopOrFail(source, player);
         if (entry == null) {
-            source.sendFailure(Component.literal("That sign is not a shop."));
             return 0;
         }
 
         if (!ShopService.canManageShop(player, entry)) {
-            source.sendFailure(Component.literal("Vandalism isn't nice."));
-            return 0;
+            return CommandFeedback.fail(source, "Vandalism isn't nice.");
         }
 
-        ShopSignManager.writeFinalDisplay(player.serverLevel(), signPos, entry);
+        ShopSignManager.writeFinalDisplay(player.serverLevel(), entry.signPos(), entry);
         player.sendSystemMessage(Component.literal("Shop updated."));
         return 1;
     }
@@ -335,8 +305,7 @@ public final class ShopCommand {
 
     private static int cancel(CommandSourceStack source) {
         if (!(source.getEntity() instanceof ServerPlayer player)) {
-            source.sendFailure(Component.literal("Only players can cancel shop creation."));
-            return 0;
+            return CommandFeedback.fail(source, "Only players can cancel shop creation.");
         }
 
         ShopCreationManager.clearCreation(player);
@@ -356,5 +325,21 @@ public final class ShopCommand {
         }
 
         return pos;
+    }
+
+    private static ShopEntry getLookedAtShopOrFail(CommandSourceStack source, ServerPlayer player) {
+        BlockPos signPos = getLookedAtSign(player);
+        if (signPos == null) {
+            CommandFeedback.fail(source, "Look at a shop sign first.");
+            return null;
+        }
+
+        ShopEntry entry = ShopService.getShop(player.serverLevel(), signPos);
+        if (entry == null) {
+            CommandFeedback.fail(source, "That sign is not a shop.");
+            return null;
+        }
+
+        return entry;
     }
 }

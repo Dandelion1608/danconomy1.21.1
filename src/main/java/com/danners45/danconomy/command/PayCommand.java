@@ -44,53 +44,47 @@ public class PayCommand {
 
     private static int execute(CommandSourceStack source, ServerPlayer target, String amountInput, String currencyId) {
         if (!(source.getEntity() instanceof ServerPlayer sender)) {
-            source.sendFailure(Component.literal("Players only."));
-            return 0;
+            return CommandFeedback.fail(source, "Players only.");
         }
 
         if (sender.getUUID().equals(target.getUUID())) {
-            source.sendFailure(Component.literal("You cannot pay yourself."));
-            return 0;
+            return CommandFeedback.fail(source, "You cannot pay yourself.");
         }
 
         try {
             Currency currency = CommandUtils.resolveCurrency(currencyId);
 
             if (!currency.isPayable()) {
-                source.sendFailure(Component.literal("That currency cannot be paid."));
-                return 0;
+                return CommandFeedback.fail(source, "That currency cannot be paid.");
             }
 
             long amount = CommandUtils.parseAmountToMinorUnits(amountInput, currency);
 
             if (amount <= 0) {
-                source.sendFailure(Component.literal("Amount must be greater than 0."));
-                return 0;
+                return CommandFeedback.fail(source, "Amount must be greater than 0.");
             }
 
             if (!EconomyAccess.withdraw(sender, currency, amount)) {
-                source.sendFailure(Component.literal(
-                        "You do not have enough " + currency.getDisplayNamePlural() + "."
-                ));
-                return 0;
+                return CommandFeedback.fail(source, "You do not have enough " + currency.getDisplayNamePlural() + ".");
             }
 
             EconomyAccess.deposit(target, currency, amount);
 
             String formattedAmount = CommandUtils.formatAmount(amount, currency);
+            notifyPayment(sender, target, formattedAmount);
 
-            sender.sendSystemMessage(
-                    Component.literal("You paid " + target.getName().getString() + " " + formattedAmount + ".")
-            );
-
-            target.sendSystemMessage(
-                    Component.literal(sender.getName().getString() + " paid you " + formattedAmount + ".")
-            );
-
-            return 1;
+				return 1;
         } catch (IllegalArgumentException | IllegalStateException e) {
-            source.sendFailure(Component.literal(e.getMessage()));
-            return 0;
+            return CommandFeedback.fail(source, e.getMessage());
         }
+    }
+    private static void notifyPayment(ServerPlayer sender, ServerPlayer target, String formattedAmount) {
+        sender.sendSystemMessage(
+                Component.literal("You paid " + target.getName().getString() + " " + formattedAmount + ".")
+        );
+
+        target.sendSystemMessage(
+                Component.literal(sender.getName().getString() + " paid you " + formattedAmount + ".")
+        );
     }
 }

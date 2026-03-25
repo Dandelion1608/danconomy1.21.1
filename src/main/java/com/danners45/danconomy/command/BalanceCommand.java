@@ -31,17 +31,13 @@ public class BalanceCommand {
 
     private static int showAllBalances(CommandSourceStack source) {
         if (!(source.getEntity() instanceof ServerPlayer player)) {
-            source.sendFailure(Component.literal("Players only."));
-            return 0;
+            return CommandFeedback.fail(source, "Players only.");
         }
 
         if (CurrencyRegistry.getAll().size() == 1) {
             Currency currency = CurrencyRegistry.getAll().values().iterator().next();
             long balance = EconomyAccess.getBalance(player, currency);
-
-            player.sendSystemMessage(
-                    Component.literal("Balance: " + CommandUtils.formatAmount(balance, currency))
-            );
+            sendBalance(player, currency, balance);
             return 1;
         }
 
@@ -60,21 +56,22 @@ public class BalanceCommand {
 
     private static int showSpecificBalance(CommandSourceStack source, String currencyId) {
         if (!(source.getEntity() instanceof ServerPlayer player)) {
-            source.sendFailure(Component.literal("Players only."));
-            return 0;
+            return CommandFeedback.fail(source, "Players only.");
         }
 
         Currency currency = CurrencyRegistry.get(currencyId);
         if (currency == null) {
-            source.sendFailure(Component.literal("Unknown currency: " + currencyId));
-            return 0;
+            return CommandFeedback.fail(source, "Unknown currency: " + currencyId);
         }
 
         long balance = EconomyAccess.getBalance(player, currency);
+        sendBalance(player, currency, balance);
+        return 1;
+    }
 
+    private static void sendBalance(ServerPlayer player, Currency currency, long balance) {
         player.sendSystemMessage(
                 Component.literal("Balance: " + CommandUtils.formatAmount(balance, currency))
         );
-        return 1;
     }
 }

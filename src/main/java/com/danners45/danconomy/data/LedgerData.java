@@ -29,37 +29,10 @@ public class LedgerData extends SavedData {
         LedgerData data = new LedgerData();
 
         CompoundTag accountsTag = tag.getCompound("accounts");
-
         for (String uuidString : accountsTag.getAllKeys()) {
             UUID uuid = UUID.fromString(uuidString);
             CompoundTag accountTag = accountsTag.getCompound(uuidString);
-
-            Account account = new Account();
-            account.setAlias(accountTag.getString("alias"));
-
-            CompoundTag balancesTag = accountTag.getCompound("balances");
-            for (String currencyId : balancesTag.getAllKeys()) {
-                long amount = balancesTag.getLong(currencyId);
-                account.setBalance(currencyId, amount);
-            }
-
-            CompoundTag earningsTag = accountTag.getCompound("offlineShopEarnings");
-            for (String currencyId : earningsTag.getAllKeys()) {
-                long amount = earningsTag.getLong(currencyId);
-                if (amount > 0L) {
-                    account.addOfflineShopEarnings(currencyId, amount);
-                }
-            }
-
-            CompoundTag spendingTag = accountTag.getCompound("offlineShopSpending");
-            for (String currencyId : spendingTag.getAllKeys()) {
-                long amount = spendingTag.getLong(currencyId);
-                if (amount > 0L) {
-                    account.addOfflineShopSpending(currencyId, amount);
-                }
-            }
-
-            data.accounts.put(uuid, account);
+            data.accounts.put(uuid, readAccount(accountTag));
         }
 
         return data;
@@ -70,31 +43,7 @@ public class LedgerData extends SavedData {
         CompoundTag accountsTag = new CompoundTag();
 
         for (Map.Entry<UUID, Account> entry : accounts.entrySet()) {
-            UUID uuid = entry.getKey();
-            Account account = entry.getValue();
-
-            CompoundTag accountTag = new CompoundTag();
-            accountTag.putString("alias", account.getAlias());
-
-            CompoundTag balancesTag = new CompoundTag();
-            for (Map.Entry<String, Long> balanceEntry : account.getAllBalances().entrySet()) {
-                balancesTag.putLong(balanceEntry.getKey(), balanceEntry.getValue());
-            }
-            accountTag.put("balances", balancesTag);
-
-            CompoundTag earningsTag = new CompoundTag();
-            for (Map.Entry<String, Long> earningsEntry : account.getOfflineShopEarnings().entrySet()) {
-                earningsTag.putLong(earningsEntry.getKey(), earningsEntry.getValue());
-            }
-            accountTag.put("offlineShopEarnings", earningsTag);
-
-            CompoundTag spendingTag = new CompoundTag();
-            for (Map.Entry<String, Long> spendingEntry : account.getOfflineShopSpending().entrySet()) {
-                spendingTag.putLong(spendingEntry.getKey(), spendingEntry.getValue());
-            }
-            accountTag.put("offlineShopSpending", spendingTag);
-
-            accountsTag.put(uuid.toString(), accountTag);
+            accountsTag.put(entry.getKey().toString(), writeAccount(entry.getValue()));
         }
 
         tag.put("accounts", accountsTag);
@@ -115,23 +64,7 @@ public class LedgerData extends SavedData {
             throw new IllegalArgumentException("Player id cannot be null.");
         }
 
-        Account account = accounts.computeIfAbsent(playerId, id -> {
-            Account newAccount = new Account();
-
-            String currencyId = CurrencyRegistry.getDefaultCurrencyId();
-            long startingBalance = CurrencyRegistry.getStartingBalance();
-
-            if ((currencyId == null || currencyId.isBlank()) && CurrencyRegistry.getAll().size() == 1) {
-                currencyId = CurrencyRegistry.getAll().keySet().iterator().next();
-            }
-
-            if (currencyId != null && !currencyId.isBlank() && startingBalance > 0) {
-                newAccount.setBalance(currencyId, startingBalance);
-            }
-
-            return newAccount;
-        });
-
+        Account account = accounts.computeIfAbsent(playerId, id -> createNewAccount());
         setDirty();
         return account;
     }
@@ -158,5 +91,71 @@ public class LedgerData extends SavedData {
 
     public void markDirty() {
         setDirty();
+    }
+
+    private static Account readAccount(CompoundTag accountTag) {
+        Account account = new Account();
+        account.setAlias(accountTag.getString("alias"));
+
+        readLongMap(accountTag.getCompound("balances"), account::setBalance);
+
+        readLongMap(accountTag.getCompound("offlineShopEarnings"), (currencyId, amount) -> {
+            if (amount > 0L) {
+                account.addOfflineShopEarnings(currencyId, amount);
+            }
+        });
+
+        readLongMap(accountTag.getCompound("offlineShopSpending"), (currencyId, amount) -> {
+            if (amount > 0L) {
+                account.addOfflineShopSpending(currencyId, amount);
+            }
+        });
+
+        return account;
+    }
+
+    private static CompoundTag writeAccount(Account account) {
+        CompoundTag accountTag = new CompoundTag();
+        accountTag.putString("alias", account.getAlias());
+        accountTag.put("balances", writeLongMap(account.getAllBalances()));
+        accountTag.put("offlineShopEarnings", writeLongMap(account.getOfflineShopEarnings()));
+        accountTag.put("offlineShopSpending", writeLongMap(account.getOfflineShopSpending()));
+        return accountTag;
+    }
+
+    private Account createNewAccount() {
+        Account newAccount = new Account();
+
+        String currencyId = CurrencyRegistry.getDefaultCurrencyId();
+        long startingBalance = CurrencyRegistry.getStartingBalance();
+
+        if ((currencyId == null || currencyId.isBlank()) && CurrencyRegistry.getAll().size() == 1) {
+            currencyId = CurrencyRegistry.getAll().keySet().iterator().next();
+        }
+
+        if (currencyId != null && !currencyId.isBlank() && startingBalance > 0) {
+            newAccount.setBalance(currencyId, startingBalance);
+        }
+
+        return newAccount;
+    }
+
+    private static void readLongMap(CompoundTag tag, EntryConsumer consumer) {
+        for (String key : tag.getAllKeys()) {
+            consumer.accept(key, tag.getLong(key));
+        }
+    }
+
+    private static CompoundTag writeLongMap(Map<String, Long> values) {
+        CompoundTag tag = new CompoundTag();
+        for (Map.Entry<String, Long> entry : values.entrySet()) {
+            tag.putLong(entry.getKey(), entry.getValue());
+        }
+        return tag;
+    }
+
+    @FunctionalInterface
+    private interface EntryConsumer {
+        void accept(String key, long amount);
     }
 }
