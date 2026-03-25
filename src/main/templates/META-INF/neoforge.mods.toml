@@ -4,7 +4,7 @@ license="All Rights Reserved"
 
 [[mods]] #mandatory
 modId="danconomy" #mandatory
-version="1.1.1" #mandatory
+version="1.1.1a" #mandatory
 displayName="DanConomy" #mandatory
 description='''
 A Simple Economy Mod for Minecraft
