@@ -73,7 +73,9 @@ public final class ShopService {
                 currencyId,
                 priceMinor,
                 templateItem,
-                amountPerTrade
+                amountPerTrade,
+                ShopEntry.BackendType.STORAGE,
+                null
         );
 
         shopData.putShop(entry);
@@ -81,6 +83,48 @@ public final class ShopService {
         player.sendSystemMessage(Component.literal(
                 "Shop created successfully as a " + (adminShop ? "ADMIN " : "") + mode.name() + " shop."
         ));
+        return true;
+    }
+
+    public static boolean tryCreateCommandShop(
+            ServerPlayer player,
+            BlockPos signPos,
+            String commandTemplate,
+            String currencyId,
+            long priceMinor
+    ) {
+        ServerLevel level = player.serverLevel();
+        ShopData shopData = ShopData.get(level);
+
+        if (shopData.hasShopAt(signPos)) {
+            player.sendSystemMessage(Component.literal("A shop already exists at this sign."));
+            return false;
+        }
+
+        CommandShopValidator.Result validation =
+                CommandShopValidator.validate(level.getServer(), player, commandTemplate);
+
+        if (!validation.valid()) {
+            player.sendSystemMessage(Component.literal("Invalid command: " + validation.reason()));
+            return false;
+        }
+
+        ShopEntry entry = new ShopEntry(
+                null,
+                signPos,
+                null,
+                true,
+                ShopEntry.Mode.BUY,
+                currencyId,
+                priceMinor,
+                ItemStack.EMPTY,
+                1,
+                ShopEntry.BackendType.COMMAND,
+                commandTemplate
+        );
+
+        shopData.putShop(entry);
+        player.sendSystemMessage(Component.literal("Command shop created successfully."));
         return true;
     }
 

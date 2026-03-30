@@ -12,6 +12,9 @@ import java.nio.file.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public final class ConfigHandler {
     private static final Logger LOGGER = DanConomy.LOGGER;
@@ -19,6 +22,10 @@ public final class ConfigHandler {
 
     private static boolean showShopDebugDetails = false;
     private static List<String> allowedShopStorage = List.of("minecraft:barrel");
+    private static Set<String> commandShopBlacklist = Set.of(
+            "op", "deop", "stop", "reload", "ban", "pardon", "whitelist"
+    );
+    private static boolean strictCommandShopValidation = true;
 
     private ConfigHandler() {
     }
@@ -85,6 +92,27 @@ public final class ConfigHandler {
                 allowedShopStorage = List.of("minecraft:barrel");
             }
         }
+        List<Object> blacklistRaw = toml.getList("shop.commandShopBlacklist");
+        if (blacklistRaw == null || blacklistRaw.isEmpty()) {
+            commandShopBlacklist = Set.of(
+                    "op", "deop", "stop", "reload", "ban", "pardon", "whitelist"
+            );
+        } else {
+            commandShopBlacklist = blacklistRaw.stream()
+                    .filter(String.class::isInstance)
+                    .map(String.class::cast)
+                    .map(s -> s.toLowerCase(Locale.ROOT))
+                    .collect(Collectors.toSet());
+
+            if (commandShopBlacklist.isEmpty()) {
+                commandShopBlacklist = Set.of(
+                        "op", "deop", "stop", "reload", "ban", "pardon", "whitelist"
+                );
+            }
+        }
+
+        Boolean strictValidation = toml.getBoolean("shop.strictCommandShopValidation", true);
+        strictCommandShopValidation = strictValidation != null && strictValidation;
 
         List<Toml> currencies = toml.getTables("currencies");
         if (currencies == null || currencies.isEmpty()) {
@@ -138,6 +166,14 @@ public final class ConfigHandler {
         return allowedShopStorage;
     }
 
+    public static Set<String> commandShopBlacklist() {
+        return commandShopBlacklist;
+    }
+
+    public static boolean strictCommandShopValidation() {
+        return strictCommandShopValidation;
+    }
+
     private static void createDefaultConfig() throws IOException {
         Files.createDirectories(CONFIG_PATH.getParent());
 
@@ -172,6 +208,15 @@ showDebugDetails = false
 #   - "minecraft:chest"
 #   - "ironchest:copper_chest"
 allowedShopStorage = ["minecraft:barrel"]
+
+# commandShopBlacklist:
+#   Root command names that cannot be used for command shops.
+#   These are checked against the first word of the command only.
+commandShopBlacklist = ["op", "deop", "stop", "reload", "ban", "pardon", "whitelist"]
+
+# strictCommandShopValidation:
+#   If true, command shops also attempt a Brigadier parse check using probe values.
+strictCommandShopValidation = true
 
 [[currencies]]
 # id:

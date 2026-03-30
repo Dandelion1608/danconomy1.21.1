@@ -21,13 +21,15 @@ public final class ShopTradeService {
     }
 
     public static boolean interact(ServerPlayer player, ShopEntry entry) {
+        if (entry.isCommandShop()) {
+            return tryCommandShop(player, entry);
+        }
         if (entry.adminShop()) {
             return switch (entry.mode()) {
                 case BUY -> tryAdminBuy(player, entry);
                 case SELL -> tryAdminSell(player, entry);
             };
         }
-
         return switch (entry.mode()) {
             case BUY -> tryBuy(player, entry);
             case SELL -> trySell(player, entry);
@@ -35,58 +37,33 @@ public final class ShopTradeService {
     }
 
     public static boolean tryBuy(ServerPlayer buyer, ShopEntry entry) {
-        ServerLevel level = buyer.serverLevel();
-
         if (isOwnPlayerShop(buyer, entry)) {
-            buyer.sendSystemMessage(Component.literal("You cannot buy from your own shop."));
-            return false;
+            return fail(buyer, "You cannot buy from your own shop.");
         }
 
-        ShopStorageValidator.QualificationResult storageResult =
-                ShopStorageValidator.qualifyLiveBlock(level, entry.storagePos());
-
-        if (!storageResult.qualified()) {
-            ShopStorageValidator.logLiveQualificationFailure(level, entry.storagePos(), storageResult);
-            buyer.sendSystemMessage(Component.literal(
-                    "This shop is currently unavailable: " + storageResult.summaryReason()
-            ));
-            return false;
-        }
-
-        IItemHandler handler = level.getCapability(Capabilities.ItemHandler.BLOCK, entry.storagePos(), null);
-        if (handler == null) {
-            buyer.sendSystemMessage(Component.literal("This shop is currently unavailable."));
+        StorageAccess storage = requireStorageHandler(buyer, entry);
+        if (storage == null) {
             return false;
         }
 
         if (entry.amountPerTrade() <= 0) {
-            buyer.sendSystemMessage(Component.literal("This shop is misconfigured."));
-            return false;
+            return fail(buyer, "This shop is misconfigured.");
         }
-
         if (entry.priceMinor() < 0) {
-            buyer.sendSystemMessage(Component.literal("This shop has an invalid price."));
+            return fail(buyer, "This shop has an invalid price.");
+        }
+
+        Currency currency = resolveCurrencyOrFail(buyer, entry, "This shop has an invalid currency.");
+        if (currency == null) {
             return false;
         }
 
-        final Currency currency;
-        try {
-            currency = CommandUtils.resolveCurrency(entry.currencyId());
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            buyer.sendSystemMessage(Component.literal("This shop has an invalid currency."));
-            return false;
+        IItemHandler handler = storage.handler();
+        if (ShopInventoryHelper.countMatchingItems(handler, entry.templateItem()) < entry.amountPerTrade()) {
+            return fail(buyer, "This shop is out of stock.");
         }
 
-        int stock = ShopInventoryHelper.countMatchingItems(handler, entry.templateItem());
-        if (stock < entry.amountPerTrade()) {
-            buyer.sendSystemMessage(Component.literal("This shop is out of stock."));
-            return false;
-        }
-
-        if (!EconomyAccess.withdraw(buyer, currency, entry.priceMinor())) {
-            buyer.sendSystemMessage(Component.literal(
-                    "You do not have enough " + currency.getDisplayNamePlural() + "."
-            ));
+        if (!withdrawPlayerOrFail(buyer, currency, entry.priceMinor())) {
             return false;
         }
 
@@ -96,11 +73,8 @@ public final class ShopTradeService {
                 entry.amountPerTrade(),
                 true
         );
-
         if (simulatedExtract.getCount() < entry.amountPerTrade()) {
-            EconomyAccess.deposit(buyer, currency, entry.priceMinor());
-            buyer.sendSystemMessage(Component.literal("This shop is out of stock."));
-            return false;
+            return refundAndFail(buyer, currency, entry.priceMinor(), "This shop is out of stock.");
         }
 
         ItemStack extracted = ShopInventoryHelper.extractMatchingItems(
@@ -109,109 +83,64 @@ public final class ShopTradeService {
                 entry.amountPerTrade(),
                 false
         );
-
         if (extracted.getCount() < entry.amountPerTrade()) {
-            EconomyAccess.deposit(buyer, currency, entry.priceMinor());
-            buyer.sendSystemMessage(Component.literal("Trade failed; you have been refunded."));
-            return false;
+            return refundAndFail(buyer, currency, entry.priceMinor(), "Trade failed; you have been refunded.");
         }
 
         ShopInventoryHelper.giveToPlayerOrDrop(buyer, extracted);
 
         if (entry.owner() != null) {
+            ServerLevel level = buyer.serverLevel();
             EconomyAccess.deposit(level, entry.owner(), currency, entry.priceMinor());
             recordOfflineEarnings(level, entry.owner(), entry.currencyId(), entry.priceMinor());
         }
 
-        buyer.sendSystemMessage(Component.literal(
-                "Purchased "
-                        + entry.amountPerTrade()
-                        + "x "
-                        + entry.templateItem().getHoverName().getString()
-                        + " for "
-                        + CommandUtils.formatAmount(entry.priceMinor(), currency)
-                        + "."
-        ));
-
-        DanConomy.LOGGER.info(
-                "[DanConomy/Shop] {} bought {} of {} from {}",
-                buyer.getGameProfile().getName(),
-                entry.amountPerTrade(),
-                entry.templateItem().getHoverName().getString(),
-                getShopOwnerName(level, entry)
-        );
-
+        sendBuySuccess(buyer, entry, currency);
+        logBuy(buyer, entry, getShopOwnerName(buyer.serverLevel(), entry));
         return true;
     }
 
     public static boolean trySell(ServerPlayer seller, ShopEntry entry) {
-        ServerLevel level = seller.serverLevel();
-
         if (isOwnPlayerShop(seller, entry)) {
-            seller.sendSystemMessage(Component.literal("You cannot sell to your own shop."));
-            return false;
+            return fail(seller, "You cannot sell to your own shop.");
         }
-
         if (entry.owner() == null) {
-            seller.sendSystemMessage(Component.literal("This shop has no valid owner account."));
-            return false;
+            return fail(seller, "This shop has no valid owner account.");
         }
 
-        ShopStorageValidator.QualificationResult storageResult =
-                ShopStorageValidator.qualifyLiveBlock(level, entry.storagePos());
-
-        if (!storageResult.qualified()) {
-            ShopStorageValidator.logLiveQualificationFailure(level, entry.storagePos(), storageResult);
-            seller.sendSystemMessage(Component.literal(
-                    "This shop is currently unavailable: " + storageResult.summaryReason()
-            ));
-            return false;
-        }
-
-        IItemHandler handler = level.getCapability(Capabilities.ItemHandler.BLOCK, entry.storagePos(), null);
-        if (handler == null) {
-            seller.sendSystemMessage(Component.literal("This shop is currently unavailable."));
+        StorageAccess storage = requireStorageHandler(seller, entry);
+        if (storage == null) {
             return false;
         }
 
         if (entry.amountPerTrade() <= 0) {
-            seller.sendSystemMessage(Component.literal("This shop is misconfigured."));
-            return false;
+            return fail(seller, "This shop is misconfigured.");
         }
-
         if (entry.priceMinor() < 0) {
-            seller.sendSystemMessage(Component.literal("This shop has an invalid price."));
+            return fail(seller, "This shop has an invalid price.");
+        }
+
+        Currency currency = resolveCurrencyOrFail(seller, entry, "This shop has an invalid currency.");
+        if (currency == null) {
             return false;
         }
 
-        final Currency currency;
-        try {
-            currency = CommandUtils.resolveCurrency(entry.currencyId());
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            seller.sendSystemMessage(Component.literal("This shop has an invalid currency."));
-            return false;
+        if (ShopInventoryHelper.countMatchingItemsInPlayer(seller, entry.templateItem()) < entry.amountPerTrade()) {
+            return fail(seller, "You do not have enough of that item to sell.");
         }
 
+        IItemHandler handler = storage.handler();
         ItemStack requiredStack = entry.templateItem().copy();
         requiredStack.setCount(entry.amountPerTrade());
 
-        int playerAmount = ShopInventoryHelper.countMatchingItemsInPlayer(seller, entry.templateItem());
-        if (playerAmount < entry.amountPerTrade()) {
-            seller.sendSystemMessage(Component.literal(
-                    "You do not have enough of that item to sell."
-            ));
-            return false;
-        }
-
         ItemStack insertRemainder = ShopInventoryHelper.insertItems(handler, requiredStack, true);
         if (!insertRemainder.isEmpty()) {
-            seller.sendSystemMessage(Component.literal("This shop storage is full."));
-            return false;
+            return fail(seller, "This shop storage is full.");
         }
 
+        ServerLevel level = seller.serverLevel();
         if (!EconomyAccess.hasFunds(level, entry.owner(), currency, entry.priceMinor())) {
-            seller.sendSystemMessage(Component.literal("This shop owner cannot afford that trade right now."));
-            return false;
+            return fail(seller, "This shop owner cannot afford that trade right now.");
         }
 
         ItemStack simulatedRemoval = ShopInventoryHelper.removeMatchingItemsFromPlayer(
@@ -220,33 +149,25 @@ public final class ShopTradeService {
                 entry.amountPerTrade(),
                 true
         );
-
         if (simulatedRemoval.getCount() < entry.amountPerTrade()) {
-            seller.sendSystemMessage(Component.literal(
-                    "You do not have enough of that item to sell."
-            ));
-            return false;
+            return fail(seller, "You do not have enough of that item to sell.");
         }
 
         if (!EconomyAccess.withdraw(level, entry.owner(), currency, entry.priceMinor())) {
-            seller.sendSystemMessage(Component.literal("This shop owner cannot afford that trade right now."));
-            return false;
+            return fail(seller, "This shop owner cannot afford that trade right now.");
         }
 
         recordOfflineSpending(level, entry.owner(), entry.currencyId(), entry.priceMinor());
 
-        ItemStack removed = ShopInventoryHelper.removeMatchingItemsFromPlayer(
+        ItemStack removed = removePlayerItemsOrFail(
                 seller,
-                entry.templateItem(),
-                entry.amountPerTrade(),
-                false
+                entry,
+                "You do not have enough of that item to sell.",
+                "Trade failed; your items were returned."
         );
-
-        if (removed.getCount() < entry.amountPerTrade()) {
-            ShopInventoryHelper.giveToPlayerOrDrop(seller, removed);
+        if (removed.isEmpty()) {
             EconomyAccess.deposit(level, entry.owner(), currency, entry.priceMinor());
             undoOfflineSpending(level, entry.owner(), entry.currencyId(), entry.priceMinor());
-            seller.sendSystemMessage(Component.literal("Trade failed; your items were returned."));
             return false;
         }
 
@@ -255,46 +176,22 @@ public final class ShopTradeService {
             ShopInventoryHelper.giveToPlayerOrDrop(seller, removed);
             EconomyAccess.deposit(level, entry.owner(), currency, entry.priceMinor());
             undoOfflineSpending(level, entry.owner(), entry.currencyId(), entry.priceMinor());
-            seller.sendSystemMessage(Component.literal("Trade failed; storage could not accept the items."));
-            return false;
+            return fail(seller, "Trade failed; storage could not accept the items.");
         }
 
         EconomyAccess.deposit(seller, currency, entry.priceMinor());
-
-        seller.sendSystemMessage(Component.literal(
-                "Sold "
-                        + entry.amountPerTrade()
-                        + "x "
-                        + entry.templateItem().getHoverName().getString()
-                        + " for "
-                        + CommandUtils.formatAmount(entry.priceMinor(), currency)
-                        + "."
-        ));
-
-        DanConomy.LOGGER.info(
-                "[DanConomy/Shop] {} sold {} of {} to {}",
-                seller.getGameProfile().getName(),
-                entry.amountPerTrade(),
-                entry.templateItem().getHoverName().getString(),
-                getShopOwnerName(level, entry)
-        );
-
+        sendSellSuccess(seller, entry, currency);
+        logSell(seller, entry, getShopOwnerName(level, entry));
         return true;
     }
 
     private static boolean tryAdminBuy(ServerPlayer buyer, ShopEntry entry) {
-        final Currency currency;
-        try {
-            currency = CommandUtils.resolveCurrency(entry.currencyId());
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            buyer.sendSystemMessage(Component.literal("This shop has an invalid currency."));
+        Currency currency = resolveCurrencyOrFail(buyer, entry, "This shop has an invalid currency.");
+        if (currency == null) {
             return false;
         }
 
-        if (!EconomyAccess.withdraw(buyer, currency, entry.priceMinor())) {
-            buyer.sendSystemMessage(Component.literal(
-                    "You do not have enough " + currency.getDisplayNamePlural() + "."
-            ));
+        if (!withdrawPlayerOrFail(buyer, currency, entry.priceMinor())) {
             return false;
         }
 
@@ -302,76 +199,82 @@ public final class ShopTradeService {
         stack.setCount(entry.amountPerTrade());
         ShopInventoryHelper.giveToPlayerOrDrop(buyer, stack);
 
-        buyer.sendSystemMessage(Component.literal(
-                "Purchased "
-                        + entry.amountPerTrade()
-                        + "x "
-                        + entry.templateItem().getHoverName().getString()
-                        + " for "
-                        + CommandUtils.formatAmount(entry.priceMinor(), currency)
-                        + "."
-        ));
-
-        DanConomy.LOGGER.info(
-                "[DanConomy/Shop] {} bought {} of {} from {}",
-                buyer.getGameProfile().getName(),
-                entry.amountPerTrade(),
-                entry.templateItem().getHoverName().getString(),
-                "Admin Store"
-        );
-
+        sendBuySuccess(buyer, entry, currency);
+        logBuy(buyer, entry, "Admin Store");
         return true;
     }
 
     private static boolean tryAdminSell(ServerPlayer seller, ShopEntry entry) {
-        final Currency currency;
-        try {
-            currency = CommandUtils.resolveCurrency(entry.currencyId());
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            seller.sendSystemMessage(Component.literal("This shop has an invalid currency."));
+        Currency currency = resolveCurrencyOrFail(seller, entry, "This shop has an invalid currency.");
+        if (currency == null) {
             return false;
         }
 
-        int playerAmount = ShopInventoryHelper.countMatchingItemsInPlayer(seller, entry.templateItem());
-        if (playerAmount < entry.amountPerTrade()) {
-            seller.sendSystemMessage(Component.literal("You do not have enough of that item to sell."));
-            return false;
-        }
-
-        ItemStack removed = ShopInventoryHelper.removeMatchingItemsFromPlayer(
+        ItemStack removed = removePlayerItemsOrFail(
                 seller,
-                entry.templateItem(),
-                entry.amountPerTrade(),
-                false
+                entry,
+                "You do not have enough of that item to sell.",
+                "Trade failed; your items were returned."
         );
-
-        if (removed.getCount() < entry.amountPerTrade()) {
-            ShopInventoryHelper.giveToPlayerOrDrop(seller, removed);
-            seller.sendSystemMessage(Component.literal("Trade failed; your items were returned."));
+        if (removed.isEmpty()) {
             return false;
         }
 
         EconomyAccess.deposit(seller, currency, entry.priceMinor());
-
-        seller.sendSystemMessage(Component.literal(
-                "Sold "
-                        + entry.amountPerTrade()
-                        + "x "
-                        + entry.templateItem().getHoverName().getString()
-                        + " for "
-                        + CommandUtils.formatAmount(entry.priceMinor(), currency)
-                        + "."
-        ));
-
-        DanConomy.LOGGER.info(
-                "[DanConomy/Shop] {} sold {} of {} to {}",
-                seller.getGameProfile().getName(),
-                entry.amountPerTrade(),
-                entry.templateItem().getHoverName().getString(),
-                "Admin Store"
-        );
-
+        sendSellSuccess(seller, entry, currency);
+        logSell(seller, entry, "Admin Store");
         return true;
+    }
+
+    private static boolean tryCommandShop(ServerPlayer player, ShopEntry entry) {
+        Currency currency = resolveCurrencyOrFail(player, entry, "This command shop has an invalid currency.");
+        if (currency == null) {
+            return false;
+        }
+        if (entry.priceMinor() < 0) {
+            return fail(player, "This command shop has an invalid price.");
+        }
+
+        String template = entry.commandTemplate();
+        if (template == null || template.isBlank()) {
+            return fail(player, "This command shop is misconfigured.");
+        }
+
+        if (entry.priceMinor() > 0 && !withdrawPlayerOrFail(player, currency, entry.priceMinor())) {
+            return false;
+        }
+
+        String command = template
+                .replace("{player}", player.getGameProfile().getName())
+                .replace("{uuid}", player.getUUID().toString());
+
+        try {
+            String stripped = command.startsWith("/") ? command.substring(1) : command;
+
+            player.serverLevel().getServer().getCommands().performPrefixedCommand(
+                    player.createCommandSourceStack()
+                            .withPermission(4)
+                            .withSuppressedOutput(),
+                    stripped
+            );
+
+            if (entry.priceMinor() > 0) {
+                player.sendSystemMessage(Component.literal(
+                        "Purchase successful for " + CommandUtils.formatAmount(entry.priceMinor(), currency) + "."
+                ));
+            } else {
+                player.sendSystemMessage(Component.literal("Command executed."));
+            }
+
+            DanConomy.LOGGER.info(
+                    "[DanConomy/Shop] {} executed command shop: {}",
+                    player.getGameProfile().getName(),
+                    stripped
+            );
+            return true;
+        } catch (Exception e) {
+            return refundAndFail(player, currency, entry.priceMinor(), "Command failed; you have been refunded.");
+        }
     }
 
     private static boolean isOwnPlayerShop(ServerPlayer player, ShopEntry entry) {
@@ -405,11 +308,7 @@ public final class ShopTradeService {
     }
 
     private static void recordOfflineEarnings(ServerLevel level, UUID ownerId, String currencyId, long amount) {
-        if (ownerId == null) {
-            return;
-        }
-
-        if (level.getServer().getPlayerList().getPlayer(ownerId) != null) {
+        if (ownerId == null || level.getServer().getPlayerList().getPlayer(ownerId) != null) {
             return;
         }
 
@@ -420,11 +319,7 @@ public final class ShopTradeService {
     }
 
     private static void recordOfflineSpending(ServerLevel level, UUID ownerId, String currencyId, long amount) {
-        if (ownerId == null) {
-            return;
-        }
-
-        if (level.getServer().getPlayerList().getPlayer(ownerId) != null) {
+        if (ownerId == null || level.getServer().getPlayerList().getPlayer(ownerId) != null) {
             return;
         }
 
@@ -435,11 +330,7 @@ public final class ShopTradeService {
     }
 
     private static void undoOfflineSpending(ServerLevel level, UUID ownerId, String currencyId, long amount) {
-        if (ownerId == null) {
-            return;
-        }
-
-        if (level.getServer().getPlayerList().getPlayer(ownerId) != null) {
+        if (ownerId == null || level.getServer().getPlayerList().getPlayer(ownerId) != null) {
             return;
         }
 
@@ -447,5 +338,133 @@ public final class ShopTradeService {
         Account account = ledger.getOrCreateAccount(ownerId);
         account.removeOfflineShopSpending(currencyId, amount);
         ledger.markDirty();
+    }
+
+    private record StorageAccess(IItemHandler handler) {
+    }
+
+    private static StorageAccess requireStorageHandler(ServerPlayer player, ShopEntry entry) {
+        if (entry.storagePos() == null) {
+            fail(player, "This shop is misconfigured.");
+            return null;
+        }
+
+        ServerLevel level = player.serverLevel();
+        ShopStorageValidator.QualificationResult result =
+                ShopStorageValidator.qualifyLiveBlock(level, entry.storagePos());
+
+        if (!result.qualified()) {
+            ShopStorageValidator.logLiveQualificationFailure(level, entry.storagePos(), result);
+            fail(player, "This shop is currently unavailable: " + result.summaryReason());
+            return null;
+        }
+
+        IItemHandler handler = level.getCapability(Capabilities.ItemHandler.BLOCK, entry.storagePos(), null);
+        if (handler == null) {
+            fail(player, "This shop is currently unavailable.");
+            return null;
+        }
+
+        return new StorageAccess(handler);
+    }
+
+    private static Currency resolveCurrencyOrFail(ServerPlayer player, ShopEntry entry, String invalidMessage) {
+        try {
+            return CommandUtils.resolveCurrency(entry.currencyId());
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            fail(player, invalidMessage);
+            return null;
+        }
+    }
+
+    private static boolean withdrawPlayerOrFail(ServerPlayer player, Currency currency, long amount) {
+        if (!EconomyAccess.withdraw(player, currency, amount)) {
+            fail(player, "You do not have enough " + currency.getDisplayNamePlural() + ".");
+            return false;
+        }
+        return true;
+    }
+
+    private static boolean refundAndFail(ServerPlayer player, Currency currency, long amount, String message) {
+        if (amount > 0) {
+            EconomyAccess.deposit(player, currency, amount);
+        }
+        return fail(player, message);
+    }
+
+    private static ItemStack removePlayerItemsOrFail(
+            ServerPlayer player,
+            ShopEntry entry,
+            String notEnoughMessage,
+            String failedMessage
+    ) {
+        if (ShopInventoryHelper.countMatchingItemsInPlayer(player, entry.templateItem()) < entry.amountPerTrade()) {
+            fail(player, notEnoughMessage);
+            return ItemStack.EMPTY;
+        }
+
+        ItemStack removed = ShopInventoryHelper.removeMatchingItemsFromPlayer(
+                player,
+                entry.templateItem(),
+                entry.amountPerTrade(),
+                false
+        );
+
+        if (removed.getCount() < entry.amountPerTrade()) {
+            ShopInventoryHelper.giveToPlayerOrDrop(player, removed);
+            fail(player, failedMessage);
+            return ItemStack.EMPTY;
+        }
+
+        return removed;
+    }
+
+    private static void sendBuySuccess(ServerPlayer player, ShopEntry entry, Currency currency) {
+        player.sendSystemMessage(Component.literal(
+                "Purchased "
+                        + entry.amountPerTrade()
+                        + "x "
+                        + entry.templateItem().getHoverName().getString()
+                        + " for "
+                        + CommandUtils.formatAmount(entry.priceMinor(), currency)
+                        + "."
+        ));
+    }
+
+    private static void sendSellSuccess(ServerPlayer player, ShopEntry entry, Currency currency) {
+        player.sendSystemMessage(Component.literal(
+                "Sold "
+                        + entry.amountPerTrade()
+                        + "x "
+                        + entry.templateItem().getHoverName().getString()
+                        + " for "
+                        + CommandUtils.formatAmount(entry.priceMinor(), currency)
+                        + "."
+        ));
+    }
+
+    private static void logBuy(ServerPlayer player, ShopEntry entry, String ownerName) {
+        DanConomy.LOGGER.info(
+                "[DanConomy/Shop] {} bought {} of {} from {}",
+                player.getGameProfile().getName(),
+                entry.amountPerTrade(),
+                entry.templateItem().getHoverName().getString(),
+                ownerName
+        );
+    }
+
+    private static void logSell(ServerPlayer player, ShopEntry entry, String ownerName) {
+        DanConomy.LOGGER.info(
+                "[DanConomy/Shop] {} sold {} of {} to {}",
+                player.getGameProfile().getName(),
+                entry.amountPerTrade(),
+                entry.templateItem().getHoverName().getString(),
+                ownerName
+        );
+    }
+
+    private static boolean fail(ServerPlayer player, String message) {
+        player.sendSystemMessage(Component.literal(message));
+        return false;
     }
 }

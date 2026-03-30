@@ -20,14 +20,23 @@ public final class ShopCreationManager {
             long priceMinor,
             String currencyId,
             boolean adminShop,
+            ShopEntry.BackendType backendType,
+            @Nullable String commandTemplate,
             @Nullable BlockPos storagePos
     ) {
         public PendingShopCreation withStorage(BlockPos storagePos) {
-            return new PendingShopCreation(mode, amountPerTrade, priceMinor, currencyId, adminShop, storagePos);
+            return new PendingShopCreation(
+                    mode, amountPerTrade, priceMinor, currencyId,
+                    adminShop, backendType, commandTemplate, storagePos
+            );
         }
 
         public boolean hasStorage() {
             return storagePos != null;
+        }
+
+        public boolean isCommandShop() {
+            return backendType == ShopEntry.BackendType.COMMAND;
         }
     }
 
@@ -45,6 +54,25 @@ public final class ShopCreationManager {
                 priceMinor,
                 currencyId,
                 adminShop,
+                ShopEntry.BackendType.STORAGE,
+                null,
+                null
+        ));
+    }
+    public static void startCommandCreation(
+            ServerPlayer player,
+            String commandTemplate,
+            long priceMinor,
+            String currencyId
+    ) {
+        PENDING.put(player.getUUID(), new PendingShopCreation(
+                ShopEntry.Mode.BUY,
+                1,
+                priceMinor,
+                currencyId,
+                true,
+                ShopEntry.BackendType.COMMAND,
+                commandTemplate,
                 null
         ));
     }

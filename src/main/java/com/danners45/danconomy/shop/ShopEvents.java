@@ -14,7 +14,7 @@ import net.neoforged.neoforge.event.level.BlockEvent;
 @EventBusSubscriber
 public final class ShopEvents {
     private static final Component VANDALISM_MESSAGE = Component.literal("Vandalism isn't nice.");
-    private static final Component STORAGE_LOCKED_MESSAGE = Component.literal("Hands off. This storage belongs to a shop.");
+    private static final Component STORAGE_LOCKED_MESSAGE = Component.literal("Hands off.\nThis storage belongs to a shop.");
 
     private ShopEvents() {
     }
@@ -41,6 +41,35 @@ public final class ShopEvents {
 
             event.setCanceled(true);
 
+            // NEW: command shop path
+            if (pending.isCommandShop()) {
+                if (!(state.getBlock() instanceof SignBlock)) {
+                    player.sendSystemMessage(Component.literal("Right-click a sign to create the command shop."));
+                    return;
+                }
+
+                boolean created = ShopService.tryCreateCommandShop(
+                        player,
+                        pos,
+                        pending.commandTemplate(),
+                        pending.currencyId(),
+                        pending.priceMinor()
+                );
+
+                if (!created) {
+                    return;
+                }
+
+                ShopEntry entry = ShopService.getShop(player.serverLevel(), pos);
+                if (entry != null) {
+                    ShopSignManager.writeFinalDisplay(player.serverLevel(), pos, entry);
+                }
+
+                ShopCreationManager.clearCreation(player);
+                return;
+            }
+
+            // Existing admin item shop path
             if (pending.adminShop()) {
                 if (!(state.getBlock() instanceof SignBlock)) {
                     player.sendSystemMessage(Component.literal("Right-click a sign to create the admin shop."));
@@ -71,6 +100,7 @@ public final class ShopEvents {
                 return;
             }
 
+            // Existing normal storage-backed shop path
             if (!pending.hasStorage()) {
                 ShopStorageValidator.QualificationResult result =
                         ShopStorageValidator.qualifyLiveBlock(player.serverLevel(), pos);
@@ -84,12 +114,12 @@ public final class ShopEvents {
                 }
 
                 ShopCreationManager.setStorage(player, pos);
-                player.sendSystemMessage(Component.literal("Storage selected. Now right-click a sign."));
+                player.sendSystemMessage(Component.literal("Storage selected.\nNow right-click a sign."));
                 return;
             }
 
             if (!(state.getBlock() instanceof SignBlock)) {
-                player.sendSystemMessage(Component.literal("That is not a sign. Right-click a sign to finish setup."));
+                player.sendSystemMessage(Component.literal("That is not a sign.\nRight-click a sign to finish setup."));
                 return;
             }
 

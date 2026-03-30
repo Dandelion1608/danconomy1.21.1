@@ -86,7 +86,12 @@ public class ShopData extends SavedData {
 
     public ShopEntry getFirstShopByStoragePos(BlockPos storagePos) {
         for (ShopEntry entry : shopsBySignPos.values()) {
-            if (entry.storagePos().equals(storagePos)) {
+            if (entry.isCommandShop()) {
+                continue;
+            }
+
+            BlockPos entryStoragePos = entry.storagePos();
+            if (entryStoragePos != null && entryStoragePos.equals(storagePos)) {
                 return entry;
             }
         }
