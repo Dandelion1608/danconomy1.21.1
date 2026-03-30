@@ -57,8 +57,8 @@ public final class ShopSignManager {
     private static String[] buildCommandLines(ServerLevel level, ShopEntry entry, Currency currency) {
         return new String[] {
                 "[COMMAND]",
+                "Second Click to",
                 getCommandDisplay(entry),
-                "Second Click to Run",
                 formatPrice(entry, currency)
         };
     }
